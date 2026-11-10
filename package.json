@@ -1,0 +1,35 @@
+{
+  "name": "finanzas-jm",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "prisma db push --skip-generate && next start -p ${PORT:-3000}",
+    "db:migrate": "prisma migrate dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "@types/nodemailer": "^6.4.24",
+    "bcryptjs": "3.0.3",
+    "chart.js": "4.5.1",
+    "jose": "6.2.2",
+    "next": "14.2.35",
+    "nodemailer": "^6.10.1",
+    "prisma": "6.19.3",
+    "react": "18.3.1",
+    "react-chartjs-2": "5.3.1",
+    "react-dom": "18.3.1",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.39",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

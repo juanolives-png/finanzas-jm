@@ -1,0 +1,205 @@
+// ─── Finanzas JM ─────────────────────────────────────────────────────────────
+// Un solo sistema, muchos clientes. Cada cliente es un "Tenant" (la cuenta que se registra).
+// Un tenant tiene usuarios y una o más empresas conectadas (cada empresa = una empresa de Colppy).
+// TODO dato contable cuelga de una Company, y toda consulta pasa por getCompany(), que verifica
+// que la empresa sea del tenant de la sesión. Nadie puede ver datos de otro cliente.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String    @id @default(cuid())
+  name      String
+  plan      String    @default("prueba") // prueba | activo | pausado
+  template  String    @default("general") // plantilla de categorías: general | coworking
+  createdAt DateTime  @default(now()) @map("created_at")
+  users     User[]
+  companies Company[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  role         String   @default("OWNER") // OWNER | ADMIN | VIEWER
+  createdAt    DateTime @default(now()) @map("created_at")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+/// Una empresa conectada. La conexión a Colppy es de la empresa: usuario + contraseña (encriptada).
+/// Las credenciales de DESARROLLADOR de Colppy son de Finanzas JM (variables de entorno), no del cliente.
+model Company {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  name            String
+  cuit            String?
+  source          String    @default("colppy")
+  colppyEmpresaId String?   @map("colppy_empresa_id")
+  colppyUser      String?   @map("colppy_user")
+  colppyPassEnc   String?   @map("colppy_pass_enc")
+  status          String    @default("conectada") // conectada | error | desconectada
+  template        String    @default("general") // plantilla de categorías de ESTA empresa: general | coworking
+  lastSyncAt      DateTime? @map("last_sync_at")
+  lastError       String?   @map("last_error")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accounts LedgerAccount[]
+  entries  LedgerEntry[]
+  syncRuns SyncRun[]
+
+  @@unique([tenantId, colppyEmpresaId])
+  @@index([tenantId])
+  @@map("companies")
+}
+
+/// Plan de cuentas de la empresa. `category` es el agrupamiento para el P&L / cashflow:
+/// lo propone el sistema (regla por código y, más adelante, la IA) y el cliente lo confirma.
+model LedgerAccount {
+  id        String  @id @default(cuid())
+  companyId String  @map("company_id")
+  code      String
+  name      String
+  typeName  String? @map("type_name")
+  category  String? // ver src/lib/categories.ts (null = sin clasificar)
+  debitOnly Boolean @default(false) @map("debit_only") /// patrimonial que entra al resultado solo por el debe (préstamos, aportes)
+  source    String? // plantilla | regla | ia | cliente
+  aiReason  String? @map("ai_reason")
+  confirmed Boolean @default(false)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@map("ledger_accounts")
+}
+
+/// Renglón del libro diario de Colppy (Contabilidad.listar_movimientosdiario).
+model LedgerEntry {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  colppyId  String   @map("colppy_id")
+  date      DateTime
+  account   String
+  dc        String // D | C
+  amount    Decimal  @db.Decimal(16, 2)
+  subdiario String?
+  contactId String?  @map("contact_id")
+  cc1       String?
+  cc2       String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, colppyId])
+  @@index([companyId, date])
+  @@index([companyId, account])
+  @@map("ledger_entries")
+}
+
+model SyncRun {
+  id         String    @id @default(cuid())
+  companyId  String    @map("company_id")
+  trigger    String
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  ok         Boolean?
+  progress   String?
+  percent    Int       @default(0)
+  summary    Json?
+  error      String?
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, startedAt])
+  @@map("sync_runs")
+}
+
+/// Cliente o proveedor (de Colppy). El mail se puede corregir a mano y no se pisa en el próximo sync.
+model Party {
+  id          String  @id @default(cuid())
+  companyId   String  @map("company_id")
+  kind        String // cliente | proveedor
+  colppyId    String  @map("colppy_id")
+  name        String
+  alias       String?
+  cuit        String?
+  email       String?
+  phone       String?
+  emailManual Boolean @default(false) @map("email_manual")
+
+  @@unique([companyId, kind, colppyId])
+  @@index([companyId, kind])
+  @@map("parties")
+}
+
+/// Comprobante de venta (FAV/NCV/NDV) o de compra (FAC/NCC/NDC) con su saldo pendiente.
+model Doc {
+  id          String    @id @default(cuid())
+  companyId   String    @map("company_id")
+  kind        String // venta | compra
+  colppyId    String    @map("colppy_id")
+  partyId     String    @map("party_colppy_id") // idCliente / idProveedor de Colppy
+  partyName   String    @map("party_name")
+  docType     String    @map("doc_type") // FAV | NCV | NDV | FAC | NCC | NDC
+  letter      String?
+  number      String
+  date        DateTime
+  dueDate     DateTime? @map("due_date")
+  description String?
+  total       Decimal   @db.Decimal(16, 2)
+  applied     Decimal   @db.Decimal(16, 2)
+  pending     Decimal   @db.Decimal(16, 2)
+
+  @@unique([companyId, kind, colppyId])
+  @@index([companyId, kind, partyId])
+  @@map("docs")
+}
+
+/// Mails enviados desde el sistema: reclamos a clientes, órdenes de pago y reclamos a proveedores.
+model MailLog {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  kind      String // reclamo_cliente | orden_pago | reclamo_proveedor
+  partyId   String   @map("party_colppy_id")
+  partyName String   @map("party_name")
+  to        String
+  cc        String?
+  subject   String
+  tone      String?
+  amount    Decimal  @db.Decimal(16, 2)
+  docs      Json
+  sentBy    String   @map("sent_by")
+  sentAt    DateTime @default(now()) @map("sent_at")
+  ok        Boolean
+  error     String?
+
+  @@index([companyId, kind, partyId])
+  @@map("mail_logs")
+}
+
+/// Casilla desde la que salen los mails del cliente (Gmail con contraseña de aplicación u otro SMTP) y datos de cobro.
+model MailConfig {
+  id          String  @id @default(cuid())
+  tenantId    String  @unique @map("tenant_id")
+  smtpHost    String  @default("smtp.gmail.com") @map("smtp_host")
+  smtpPort    Int     @default(465) @map("smtp_port")
+  smtpUser    String? @map("smtp_user")
+  smtpPassEnc String? @map("smtp_pass_enc")
+  fromName    String? @map("from_name")
+  replyTo     String? @map("reply_to")
+  ccDefault   String? @map("cc_default")
+  signature   String?
+  bankInfo    String? @map("bank_info") /// texto libre: banco, CBU, alias, titular, CUIT
+  brandColor  String  @default("#131c4a") @map("brand_color")
+
+  @@map("mail_configs")
+}
