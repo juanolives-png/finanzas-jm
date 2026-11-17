@@ -174,6 +174,21 @@ export async function startSync(companyId: string, trigger: string) {
         done++;
         await progress(`Libro diario: mes ${done} de ${monthsToSync.length}`, d0 + ((d1 - d0) * done) / monthsToSync.length);
       });
+      // Cuentas que tienen movimientos pero no figuran en el plan de cuentas de Colppy (en Huerta pasó con 540230):
+      // se crean igual, así el cliente las puede clasificar en "Plan de cuentas".
+      const huerfanas = await db.$queryRaw<{ account: string }[]>`
+        SELECT DISTINCT e.account FROM ledger_entries e
+        LEFT JOIN ledger_accounts a ON a.company_id = e.company_id AND a.code = e.account
+        WHERE e.company_id = ${companyId} AND a.id IS NULL AND e.account <> ''`;
+      if (huerfanas.length) {
+        await db.ledgerAccount.createMany({
+          data: huerfanas.map(({ account }) => {
+            const p = propose((company.template as TemplateKey) ?? "general", account, "");
+            return { companyId, code: account, name: `Cuenta ${account} (no figura en el plan de Colppy)`, category: p.category, debitOnly: p.debitOnly ?? false, source: p.source };
+          }),
+          skipDuplicates: true,
+        });
+      }
       const comprobantes = await syncDocs(c, idEmpresa, companyId, progress);
       await db.syncRun.update({ where: { id: run.id }, data: { ok: true, finishedAt: new Date(), progress: "Listo", percent: 100, summary: { cuentas, meses: monthsToSync.length, asientos, ...comprobantes } } });
       await db.company.update({ where: { id: companyId }, data: { status: "conectada", lastSyncAt: new Date(), lastError: null } });
