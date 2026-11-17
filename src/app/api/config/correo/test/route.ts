@@ -6,7 +6,7 @@ export async function POST() {
   try {
     const s = await requireSession();
     try {
-      await deliver(s.tenantId, { to: [s.email], cc: [], subject: "Finanzas JM — mail de prueba", text: "¡Funciona! Los reclamos y órdenes de pago van a salir desde esta casilla.", html: "<p>¡Funciona! Los reclamos y órdenes de pago van a salir desde esta casilla.</p>" });
+      await deliver(s.tenantId, { to: [s.email], cc: [], subject: "Numo — mail de prueba", text: "¡Funciona! Los reclamos y órdenes de pago van a salir desde esta casilla.", html: "<p>¡Funciona! Los reclamos y órdenes de pago van a salir desde esta casilla.</p>" });
     } catch (e) { throw new HttpError(400, e instanceof Error ? e.message : String(e)); }
     return Response.json({ ok: true, to: s.email });
   } catch (e) { return errorResponse(e); }

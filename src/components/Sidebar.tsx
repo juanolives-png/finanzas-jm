@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Wordmark } from "@/components/Logo";
+import { applyTheme, readThemePref, useThemeKey, type ThemePref } from "@/lib/theme";
 import { NAV } from "@/lib/nav";
 
 type Props = { user: string; tenant: string; companies: { id: string; name: string }[] };
@@ -40,7 +42,7 @@ export default function Sidebar({ user, tenant, companies }: Props) {
   return (
     <aside className={`side ${open ? "open" : ""}`}>
       <div className="side-top">
-        <div className="brand">Finanzas <span>JM</span></div>
+        <Link href={`/app${q}`} aria-label="Inicio"><Wordmark height={24} /></Link>
         <button className="btn-menu" onClick={() => setOpen(!open)} aria-label="Menú">☰</button>
       </div>
 
@@ -65,13 +67,30 @@ export default function Sidebar({ user, tenant, companies }: Props) {
       </nav>
 
       <div className="side-foot">
-        <div className="avatar">{user.slice(0, 1).toUpperCase()}</div>
-        <div style={{ minWidth: 0 }}>
-          <div className="ellipsis">{user}</div>
-          <div className="ellipsis muted">{tenant}</div>
+        <ThemeToggle />
+        <div className="side-user">
+          <div className="avatar">{user.slice(0, 1).toUpperCase()}</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="ellipsis">{user}</div>
+            <div className="ellipsis muted">{tenant}</div>
+          </div>
+          <button className="link-btn" onClick={logout}>Salir</button>
         </div>
-        <button className="link-btn" onClick={logout}>Salir</button>
       </div>
     </aside>
+  );
+}
+
+function ThemeToggle() {
+  const [pref, setPref] = useState<ThemePref>("light");
+  useThemeKey();
+  useEffect(() => setPref(readThemePref()), []);
+  const opts: [ThemePref, string][] = [["light", "☀ Claro"], ["dark", "☾ Oscuro"], ["auto", "Auto"]];
+  return (
+    <div className="theme-toggle" role="group" aria-label="Apariencia">
+      {opts.map(([k, l]) => (
+        <button key={k} className={pref === k ? "on" : ""} onClick={() => { applyTheme(k); setPref(k); }}>{l}</button>
+      ))}
+    </div>
   );
 }

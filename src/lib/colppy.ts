@@ -1,6 +1,6 @@
 // ─── Conexión con la API de Colppy (multi-cliente) ───────────────────────────
 // Viene del sistema de Infocampo, con un cambio: las credenciales del usuario de Colppy ya no son fijas,
-// cada empresa conectada trae las suyas. Las de DESARROLLADOR son de Finanzas JM:
+// cada empresa conectada trae las suyas. Las de DESARROLLADOR son de Numo:
 //   COLPPY_DEV_USER / COLPPY_DEV_PASS  (variables de entorno)
 // Las contraseñas viajan en MD5 (así lo pide la API); si Colppy rechaza el MD5 se reintenta en texto.
 // Ojo (aprendido en Huerta): Colppy distingue mayúsculas en el usuario de plataforma; se manda tal cual lo escribe el cliente.

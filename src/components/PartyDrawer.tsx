@@ -105,7 +105,7 @@ export default function PartyDrawer({ companyId, companyName, kind, partyId, onC
                 </div>
 
                 <h3 style={{ marginTop: 22 }}>Mails enviados</h3>
-                {d.mails.length === 0 && <p className="muted small">Todavía no se le mandó nada desde Finanzas JM.</p>}
+                {d.mails.length === 0 && <p className="muted small">Todavía no se le mandó nada desde Numo.</p>}
                 {d.mails.map((m, i) => (
                   <div className="row" key={i}>
                     <span>{KIND_LABEL[m.kind] ?? m.kind}{m.tone ? ` · ${TONE_LABEL[m.tone as Tone] ?? m.tone}` : ""}<div className="muted small">{new Date(m.at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })} · {m.to}</div></span>

@@ -47,7 +47,7 @@ export default function Conexiones() {
 
       <div className="grid connectors">
         <div className="card connector">
-          <div className="logo" style={{ background: "#0d2e20", color: "#3ecf8e" }}>C</div>
+          <div className="logo" style={{ background: "var(--green3)", color: "var(--green)" }}>C</div>
           <strong>Colppy</strong>
           <p className="muted small">Tu contabilidad completa: ventas, compras, sueldos, impuestos, bancos.</p>
           {!open && <button className="btn" onClick={() => setOpen(true)}>{companies.length ? "Conectar otra empresa" : "Conectar"}</button>}
@@ -104,7 +104,7 @@ function ColppyWizard({ onClose, onDone }: { onClose: () => void; onDone: (compa
       {step === 1 ? (
         <form onSubmit={probar}>
           <h3>Conectar Colppy · Paso 1: tu usuario</h3>
-          <p className="muted small">Usá el mismo mail y contraseña con los que entrás a Colppy. Te recomendamos crear un usuario aparte para Finanzas JM. Solo leemos: no modificamos nada en tu Colppy.</p>
+          <p className="muted small">Usá el mismo mail y contraseña con los que entrás a Colppy. Te recomendamos crear un usuario aparte para Numo. Solo leemos: no modificamos nada en tu Colppy.</p>
           <label>Usuario de Colppy (mail)</label>
           <input value={user} onChange={(e) => setUser(e.target.value)} required autoComplete="off" />
           <label>Contraseña de Colppy</label>

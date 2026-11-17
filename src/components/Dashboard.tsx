@@ -6,6 +6,7 @@ import { Chart } from "react-chartjs-2";
 import type { DashboardData } from "@/lib/dashboard";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { STAGES, STAGE_LABELS } from "@/lib/progress";
+import { cssVar, useThemeKey } from "@/lib/theme";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineElement, PointElement, BarController, LineController);
 
@@ -28,6 +29,7 @@ export default function Dashboard({ companyId }: { companyId: string }) {
   const [resp, setResp] = useState<Resp | null>(null);
   const [running, setRunning] = useState(false);
   const [run, setRun] = useState<Run>(null);
+  const themeKey = useThemeKey();
   const [debt, setDebt] = useState<{ cli?: { total: number; overdue: number; avgLate: number }; prov?: { total: number; overdue: number; next7: number } }>({});
 
   const load = useCallback(async () => {
@@ -129,22 +131,23 @@ export default function Dashboard({ companyId }: { companyId: string }) {
             <div className="card">
               <h3>Ingresos, gastos y resultado — últimos 12 meses</h3>
               <Chart
+                key={themeKey}
                 type="bar"
                 data={{
                   labels: months.map((m) => mLabel(m.month) + (m.partial ? " (en curso)" : "")),
                   datasets: [
-                    { type: "bar" as const, label: "Ingresos", data: months.map((m) => m.ingresos), backgroundColor: months.map((m) => (m.partial ? "rgba(62,207,142,.25)" : "#3ecf8e")), borderRadius: 4 },
-                    { type: "bar" as const, label: "Gastos", data: months.map(gastosDe), backgroundColor: months.map((m) => (m.partial ? "rgba(240,96,96,.25)" : "#f06060")), borderRadius: 4 },
+                    { type: "bar" as const, label: "Ingresos", data: months.map((m) => m.ingresos), backgroundColor: months.map((m) => (m.partial ? cssVar("--green") + "40" : cssVar("--green"))), borderRadius: 4 },
+                    { type: "bar" as const, label: "Gastos", data: months.map(gastosDe), backgroundColor: months.map((m) => (m.partial ? cssVar("--border2") + "80" : cssVar("--border2"))), borderRadius: 4 },
                     // El mes en curso no se dibuja en la línea: el resultado parcial engaña
-                    { type: "line" as const, label: "Resultado", data: months.map((m) => (m.partial ? null : m.resultado)), borderColor: "#5b9cf6", backgroundColor: "#5b9cf6", tension: 0.3, spanGaps: false },
+                    { type: "line" as const, label: "Resultado", data: months.map((m) => (m.partial ? null : m.resultado)), borderColor: cssVar("--blue"), backgroundColor: cssVar("--blue"), borderWidth: 2.5, pointRadius: 3, tension: 0.3, spanGaps: false },
                   ],
                 }}
                 options={{
                   responsive: true,
-                  plugins: { legend: { labels: { color: "#b0b0c0", boxWidth: 10 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(Number(c.raw))}` } } },
+                  plugins: { legend: { labels: { color: cssVar("--text2"), boxWidth: 10, boxHeight: 10 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(Number(c.raw))}` } } },
                   scales: {
-                    x: { ticks: { color: "#8888a0", callback: (_v, i) => mLabel(months[i].month) }, grid: { display: false } },
-                    y: { ticks: { color: "#8888a0", callback: (v) => short(Number(v)) }, grid: { color: "#252529" } },
+                    x: { ticks: { color: cssVar("--text3"), callback: (_v, i) => mLabel(months[i].month) }, grid: { display: false } },
+                    y: { ticks: { color: cssVar("--text3"), callback: (v) => short(Number(v)) }, grid: { color: cssVar("--chart-grid") } },
                   },
                 }}
               />

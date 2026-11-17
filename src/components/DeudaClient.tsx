@@ -7,6 +7,7 @@ import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, BarC
 import { Bar } from "react-chartjs-2";
 import { Icon } from "@/components/Sidebar";
 import PartyDrawer from "@/components/PartyDrawer";
+import { cssVar, useThemeKey } from "@/lib/theme";
 import type { Cell, PartyRow, Kind } from "@/lib/deuda";
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, BarController);
@@ -21,7 +22,7 @@ type Resp = {
 // Por vencer en verde; lo vencido en una escala de rojo que se oscurece con los días (la de Infocampo)
 const COLORS: Record<Kind, string[]> = {
   clientes: ["#2F7D4F", "#EE9F86", "#E0704F", "#C84A30", "#9E2D1D", "#691A10"],
-  proveedores: ["#C84A30", "#E0A040", "#5b9cf6", "#2F7D4F"],
+  proveedores: ["#C84A30", "#D9A63E", "#3B6EA8", "#2F7D4F"],
 };
 const MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const mLabel = (m: string) => `${MES[+m.slice(5, 7) - 1]} ${m.slice(2, 4)}`;
@@ -39,6 +40,7 @@ export default function DeudaClient({ kind }: { kind: Kind }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const isCli = kind === "clientes";
+  const themeKey = useThemeKey();
 
   useEffect(() => {
     if (companyId) return;
@@ -129,6 +131,7 @@ export default function DeudaClient({ kind }: { kind: Kind }) {
             <div style={{ marginTop: 18 }}>
               <div className="muted small" style={{ marginBottom: 6 }}>Saldo por mes de factura · tocá una barra para filtrar</div>
               <Bar
+                key={themeKey}
                 height={70}
                 data={{
                   labels: view.months.map(mLabel),
@@ -138,7 +141,7 @@ export default function DeudaClient({ kind }: { kind: Kind }) {
                   responsive: true,
                   onClick: (_e, els) => { const i = els[0]?.index; if (i !== undefined) setMonth(month === view.months[i] ? null : view.months[i]); },
                   plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${short(Number(c.raw))}` } } },
-                  scales: { x: { stacked: true, ticks: { color: "#8888a0" }, grid: { display: false } }, y: { stacked: true, ticks: { color: "#8888a0", callback: (v) => short(Number(v)) }, grid: { color: "#252529" } } },
+                  scales: { x: { stacked: true, ticks: { color: cssVar("--text3") }, grid: { display: false } }, y: { stacked: true, ticks: { color: cssVar("--text3"), callback: (v) => short(Number(v)) }, grid: { color: cssVar("--chart-grid") } } },
                 }}
               />
             </div>

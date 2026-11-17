@@ -25,7 +25,7 @@ function EmptyNoCompany({ name }: { name: string }) {
       <div className="card empty">
         <div className="badge">Paso 1 de 2</div>
         <h2>Conectá tu sistema contable</h2>
-        <p>Conectás Colppy una sola vez y Finanzas JM trae tu contabilidad, arma el tablero y lo mantiene actualizado todos los días. Sin cargar nada a mano.</p>
+        <p>Conectás Colppy una sola vez y Numo trae tu contabilidad, arma el tablero y lo mantiene actualizado todos los días. Sin cargar nada a mano.</p>
         <Link href="/app/conexiones" className="btn">Conectar mi sistema</Link>
       </div>
     </>

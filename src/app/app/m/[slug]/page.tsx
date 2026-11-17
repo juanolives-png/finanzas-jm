@@ -22,7 +22,7 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
             {m.bullets.map((b) => <li key={b}>{b}</li>)}
           </ul>
         )}
-        {m.from && <p className="muted small" style={{ marginTop: 18 }}>Ya funciona en {m.from}: lo estamos trayendo a Finanzas JM.</p>}
+        
       </div>
     </>
   );
