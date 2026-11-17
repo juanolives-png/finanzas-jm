@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Mark, Wordmark } from "@/components/Logo";
+import { OB_STORAGE } from "@/lib/onboarding";
 
 type Field = { name: string; label: string; type?: string; placeholder?: string; auto?: string };
 
@@ -27,6 +28,16 @@ export default function AuthForm({ mode }: { mode: "login" | "registro" }) {
     const res = await fetch(`/api/auth/${mode}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) { setError(j.error ?? "Algo salió mal"); setBusy(false); return; }
+    if (mode === "registro") {
+      // Lo que eligió en "¿Qué querés ver de tu empresa?" antes de tener cuenta
+      try {
+        const saved = localStorage.getItem(OB_STORAGE);
+        if (saved) {
+          await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: saved });
+          localStorage.removeItem(OB_STORAGE);
+        }
+      } catch { /* si falla, se puede elegir de nuevo */ }
+    }
     window.location.href = mode === "registro" ? "/app/conexiones" : "/app";
   }
 
@@ -60,7 +71,7 @@ export default function AuthForm({ mode }: { mode: "login" | "registro" }) {
           <p className="muted small" style={{ marginTop: 18, textAlign: "center" }}>
             {mode === "registro"
               ? <>¿Ya tenés cuenta? <Link href="/login" className="up">Entrá</Link></>
-              : <>¿No tenés cuenta? <Link href="/registro" className="up">Creala gratis</Link></>}
+              : <>¿No tenés cuenta? <Link href="/empezar" className="up">Creala gratis</Link></>}
           </p>
         </form>
       </div>

@@ -178,6 +178,15 @@ export default function Dashboard({ companyId }: { companyId: string }) {
                   <span className="up small">Ver y pagar →</span>
                 </Link>
               )}
+              {debt.cli && debt.prov && (
+                <div className="card" title="Lo que te deben los clientes menos lo que debés a proveedores (sin contar la caja)">
+                  <span>
+                    <div className="kpi-label">Capital de trabajo operativo</div>
+                    <div className={`kpi-value ${debt.cli.total - debt.prov.total < 0 ? "down" : ""}`}>{short(debt.cli.total - debt.prov.total)}</div>
+                    <div className="kpi-sub muted">Te deben {short(debt.cli.total)} − debés {short(debt.prov.total)}</div>
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

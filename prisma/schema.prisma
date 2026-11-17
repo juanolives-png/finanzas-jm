@@ -18,6 +18,8 @@ model Tenant {
   name      String
   plan      String    @default("prueba") // prueba | activo | pausado
   template  String    @default("general") // plantilla de categorías: general | coworking
+  modules   Json?     /// módulos que eligió en el inicio ("dash", "pyl", "caja"…); null = todos
+  wishes    Json?     /// lo que pidió con sus palabras en el inicio (sirve para saber qué construir)
   createdAt DateTime  @default(now()) @map("created_at")
   users     User[]
   companies Company[]

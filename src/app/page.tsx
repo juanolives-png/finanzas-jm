@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 
-// Por ahora la raíz manda al sistema o al login. Más adelante acá va la landing.
+// Sin sesión, la raíz lleva al inicio mágico ("¿Qué querés ver de tu empresa?").
 export default async function Home() {
-  redirect((await getSession()) ? "/app" : "/login");
+  redirect((await getSession()) ? "/app" : "/empezar");
 }

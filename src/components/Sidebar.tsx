@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/Logo";
 import { applyTheme, readThemePref, useThemeKey, type ThemePref } from "@/lib/theme";
 import { NAV } from "@/lib/nav";
+import { navSlugsFor } from "@/lib/onboarding";
 
-type Props = { user: string; tenant: string; companies: { id: string; name: string }[] };
+type Props = { user: string; tenant: string; companies: { id: string; name: string }[]; modules?: string[] | null };
 
 const ICONS: Record<string, string> = {
   home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
@@ -25,7 +26,9 @@ export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   );
 }
 
-export default function Sidebar({ user, tenant, companies }: Props) {
+export default function Sidebar({ user, tenant, companies, modules }: Props) {
+  const allowed = navSlugsFor(modules);
+  const sections = NAV.map((sec) => ({ ...sec, modules: sec.key === "config" || !allowed ? sec.modules : sec.modules.filter((m) => allowed.has(m.slug)) })).filter((sec) => sec.modules.length);
   const path = usePathname();
   const params = useSearchParams();
   const company = params.get("company") ?? companies[0]?.id ?? "";
@@ -53,7 +56,7 @@ export default function Sidebar({ user, tenant, companies }: Props) {
       )}
 
       <nav className="side-nav">
-        {NAV.map((s) => (
+        {sections.map((s) => (
           <div className="side-group" key={s.key}>
             <div className="side-title"><Icon name={s.icon} size={14} /> {s.label}</div>
             {s.modules.map((m) => (
