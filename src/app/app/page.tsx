@@ -7,10 +7,25 @@ export const dynamic = "force-dynamic";
 
 export default async function AppHome({ searchParams }: { searchParams: { company?: string } }) {
   const s = (await getSession())!;
-  const companies = await db.company.findMany({ where: { tenantId: s.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true } });
-  const companyId = companies.find((c) => c.id === searchParams.company)?.id ?? companies[0]?.id;
-  if (!companyId) return <EmptyNoCompany name={s.name} />;
-  return <Dashboard companyId={companyId} />;
+  const companies = await db.company.findMany({ where: { tenantId: s.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, source: true } });
+  // Por defecto, la primera empresa real; la demo solo si no hay otra o si la eligió
+  const pick = companies.find((c) => c.id === searchParams.company) ?? companies.find((c) => c.source !== "demo") ?? companies[0];
+  if (!pick) return <EmptyNoCompany name={s.name} />;
+  const onlyDemo = !companies.some((c) => c.source !== "demo");
+  return (
+    <>
+      {pick.source === "demo" && (
+        <div className="demo-banner">
+          <div>
+            <b>Estás mirando una empresa de ejemplo.</b>
+            <span>Los números son inventados. Tocá cualquier número y recorré tu sistema; cuando quieras, conectá tu Colppy y pasan a ser los tuyos.</span>
+          </div>
+          {onlyDemo && <Link href="/app/conexiones" className="btn sm">Conectar mi Colppy →</Link>}
+        </div>
+      )}
+      <Dashboard companyId={pick.id} />
+    </>
+  );
 }
 
 function EmptyNoCompany({ name }: { name: string }) {

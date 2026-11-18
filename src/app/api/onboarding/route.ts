@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { errorResponse, HttpError, requireSession } from "@/lib/auth";
 
-const Body = z.object({ modules: z.array(z.string().max(40)).max(40), wishes: z.array(z.string().max(500)).max(30).optional() });
+const Body = z.object({ modules: z.array(z.string().max(40)).max(40), wishes: z.array(z.string().max(500)).max(40).optional(), company: z.string().max(80).optional() });
 
 export async function POST(req: Request) {
   try {

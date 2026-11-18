@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-type Company = { id: string; name: string; cuit: string | null; status: string; lastSyncAt: string | null; lastError: string | null; colppyUser: string | null };
+type Company = { id: string; name: string; cuit: string | null; source: string; status: string; lastSyncAt: string | null; lastError: string | null; colppyUser: string | null };
 type Empresa = { id: string; nombre: string; cuit: string | null };
 
 // Los conectores que vienen. Se muestran para que el cliente vea el camino.
@@ -20,6 +20,16 @@ export default function Conexiones() {
     if (r.ok) setCompanies((await r.json()).companies);
   }
   useEffect(() => { load(); }, []);
+  const [demoBusy, setDemoBusy] = useState(false);
+  const demo = companies.find((c) => c.source === "demo");
+  async function demoAction(method: "POST" | "DELETE") {
+    setDemoBusy(true);
+    const r = await fetch("/api/demo", { method });
+    const j = await r.json().catch(() => ({}));
+    setDemoBusy(false);
+    if (method === "POST" && j.companyId) { window.location.href = `/app?company=${j.companyId}`; return; }
+    load();
+  }
 
   return (
     <>
@@ -35,13 +45,22 @@ export default function Conexiones() {
           <h3>Empresas conectadas</h3>
           {companies.map((c) => (
             <div className="row" key={c.id}>
-              <span>{c.name} <span className="muted small">· Colppy · {c.colppyUser}</span></span>
+              <span>{c.name} <span className="muted small">· {c.source === "demo" ? "Empresa de ejemplo, números inventados" : `Colppy · ${c.colppyUser}`}</span></span>
               <span>
-                <span className={`badge ${c.status === "error" ? "red" : "green"}`}>{c.status === "error" ? "Con error" : "Conectada"}</span>{" "}
+                {c.source === "demo"
+                  ? <><span className="badge">Demo</span>{" "}<button className="btn ghost sm" disabled={demoBusy} onClick={() => demoAction("DELETE")}>Quitar</button>{" "}</>
+                  : <><span className={`badge ${c.status === "error" ? "red" : "green"}`}>{c.status === "error" ? "Con error" : "Conectada"}</span>{" "}</>}
                 <a href={`/app?company=${c.id}`} className="up small">Ver tablero →</a>
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {!demo && (
+        <div className="card" style={{ marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div><strong>Empresa demo</strong><p className="muted small" style={{ marginTop: 4 }}>Una distribuidora inventada con un año de números, para mostrar Numo sin exponer datos reales.</p></div>
+          <button className="btn ghost" disabled={demoBusy} onClick={() => demoAction("POST")}>{demoBusy ? "Armándola…" : "Sumar empresa demo"}</button>
         </div>
       )}
 

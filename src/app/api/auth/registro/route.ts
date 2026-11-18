@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession, errorResponse, HttpError } from "@/lib/auth";
+import { ensureDemoCompany } from "@/lib/demo";
 
 const Body = z.object({
   empresa: z.string().trim().min(2, "Poné el nombre de tu empresa"),
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
     const user = await db.user.create({
       data: { email, name: nombre, passwordHash: await bcrypt.hash(password, 10), role: "OWNER", tenant: { create: { name: empresa } } },
     });
+    // Cada cuenta nueva arranca con la empresa demo: recorre su sistema armado antes de conectar Colppy
+    await ensureDemoCompany(user.tenantId).catch((e) => console.error("[registro] no se pudo crear la demo", e));
     await createSession({ userId: user.id, tenantId: user.tenantId, name: user.name, email: user.email });
     return Response.json({ ok: true });
   } catch (e) { return errorResponse(e); }

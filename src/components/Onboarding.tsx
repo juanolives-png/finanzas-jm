@@ -3,10 +3,13 @@
 // 1. El cliente escribe (o toca sugerencias) y aprieta Enter.
 // 2. Numo responde escribiendo y propone módulos (se pueden sacar). Si pide algo que no conoce, lo anota igual.
 // 3. "Sí, armalo": chispas y cada pieza del sistema vuela desde el centro a su lugar.
-// 4. Se guardan los módulos y los pedidos; sigue a crear la cuenta (si no la tiene) y conectar el sistema contable.
+// 4. Queda armado y se puede recorrer: cada sección explica qué responde y deja abrir los números;
+//    se sacan o suman secciones y se pone el nombre de la empresa (ObPreview).
+// 5. Se guardan módulos, pedidos y nombre; al crear la cuenta entra con su Numo armado y la empresa demo.
 import { useEffect, useRef, useState } from "react";
 import { Mark, Wordmark } from "@/components/Logo";
 import { detectModules, OB_DEFAULT, OB_MODULES, OB_STORAGE, type ObModule } from "@/lib/onboarding";
+import ObPreview from "@/components/ObPreview";
 
 type Msg = { id: number; who: "user" | "bot"; text: string; typing?: string; mods?: string[]; ask?: string; actions?: boolean };
 
@@ -34,6 +37,8 @@ export default function Onboarding({ loggedIn }: { loggedIn: boolean }) {
   const [building, setBuilding] = useState(false);
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [active, setActive] = useState("dash");
+  const [company, setCompany] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<HTMLDivElement>(null);
@@ -90,6 +95,7 @@ export default function Onboarding({ loggedIn }: { loggedIn: boolean }) {
 
   // ── El armado: cada pieza arranca en el centro, chiquita y girada, y vuela a su lugar ──
   function build() {
+    setActive("dash"); setDone(false);
     setBuilding(true);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const app = appRef.current;
@@ -120,10 +126,11 @@ export default function Onboarding({ loggedIn }: { loggedIn: boolean }) {
 
   async function finish() {
     setSaving(true);
-    const payload = { modules: chosen.filter((x) => !x.startsWith("x")), wishes };
+    const custom = catalog.filter((m) => m.custom && chosen.includes(m.id)).map((m) => `Sección pedida: ${m.label}`);
+    const payload = { modules: chosen.filter((x) => !x.startsWith("x")), wishes: [...wishes, ...custom], company: company.trim() || undefined };
     if (loggedIn) {
       await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).catch(() => null);
-      window.location.href = "/app/conexiones";
+      window.location.href = "/app";
     } else {
       try { localStorage.setItem(OB_STORAGE, JSON.stringify(payload)); } catch { /* sin almacenamiento: se elige de nuevo después */ }
       window.location.href = "/registro";
@@ -205,50 +212,44 @@ export default function Onboarding({ loggedIn }: { loggedIn: boolean }) {
 
       {building && (
         <div className="ob-build">
-          <div className="ob-app" ref={appRef}>
-            <aside className="ob-side">
-              <div style={{ padding: "2px 8px 10px", color: "#F3F5F1" }}><Wordmark height={20} /></div>
-              <div className="ob-t ob-fly">Tu empresa</div>
-              {order.map((m, i) => <div key={m.id} className={`ob-nav ob-fly ${i === 0 ? "on" : ""}`}><Ico k={m.custom ? "x" : m.id} />{m.label}</div>)}
-              <div className="ob-t ob-fly">Configuración</div>
-              <div className="ob-nav ob-fly"><Ico k="dash" />Conectar sistemas</div>
-            </aside>
-            <main className="ob-main">
-              <h2 className="ob-fly">Buen día 👋</h2>
-              <div className="ob-sub ob-fly">Así se va a ver tu empresa. Por ahora con números de ejemplo.</div>
-              <div className="ob-tiles">{order.map((m) => <Tile key={m.id} m={m} />)}</div>
-            </main>
-          </div>
+          <ObPreview
+            order={order} others={catalog.filter((m) => !m.custom && !chosen.includes(m.id))} company={company} setCompany={setCompany}
+            active={active} setActive={setActive}
+            onRemove={(id) => { setChosen((c) => c.filter((x) => x !== id)); if (active === id) setActive("dash"); }}
+            onAdd={(id) => setChosen((c) => (c.includes(id) ? c : [...c, id]))}
+            Ico={Ico} Tile={Tile} appRef={appRef}
+          />
         </div>
       )}
 
       <div className={`ob-done ${done ? "show" : ""}`}>
-        <div><b>Tu Numo está listo.</b><span>{loggedIn ? "Ahora conectá tu sistema contable y estos números pasan a ser los tuyos." : "Creá tu cuenta y conectá tu sistema contable: estos números pasan a ser los tuyos."}</span></div>
-        <button className="ob-btn go" onClick={finish} disabled={saving}>{saving ? "Un momento…" : loggedIn ? "Conectar mi sistema →" : "Crear mi cuenta →"}</button>
+        <div><b>Tu Numo está armado.</b><span>Recorrelo, sacá o sumá secciones. {loggedIn ? "Cuando te guste, guardalo." : "Cuando te guste, creá tu cuenta y entrás con esto listo."}</span></div>
+        <button className="ob-btn alt" onClick={() => { setBuilding(false); setDone(false); setTimeout(() => inputRef.current?.focus(), 50); }}>← Volver a la charla</button>
+        <button className="ob-btn go" onClick={finish} disabled={saving}>{saving ? "Un momento…" : loggedIn ? "Guardar mi Numo →" : "Crear mi cuenta →"}</button>
       </div>
     </div>
   );
 }
 
-function Tile({ m }: { m: ObModule }) {
+function Tile({ m, onOpen }: { m: ObModule; onOpen: () => void }) {
   const T = ({ l, v, c, cl }: { l: string; v: string; c?: string; cl?: string }) => (
-    <div className="ob-tile ob-fly"><div className="l">{l}</div><div className="v">{v}</div>{c && <span className={`c ${cl}`}>{c}</span>}</div>
+    <div onClick={onOpen} className="ob-tile ob-fly ob-click"><div className="l">{l}</div><div className="v">{v}</div>{c && <span className={`c ${cl}`}>{c}</span>}</div>
   );
   switch (m.id) {
     case "dash": return <><T l="Ventas del mes" v="$ 286 M" c="▲ 6%" cl="g" /><T l="Ganancia" v="$ 42 M" c="15% margen" cl="g" /><T l="Caja hoy" v="$ 95 M" c="3,4 meses" cl="w" /><T l="Te deben" v="$ 138 M" c="31% vencido" cl="b" /></>;
-    case "pyl": return <div className="ob-tile ob-fly w2"><div className="l">Estado de resultados · octubre</div>{[["Ventas", "286,4"], ["Costos", "−171,8"], ["Gastos", "−72,8"], ["EBITDA", "41,8"], ["Resultado neto", "22,3"]].map(([a, b]) => <div key={a} className="ob-rowx"><span>{a}</span><b>{b}</b></div>)}</div>;
-    case "caja": return <div className="ob-tile ob-fly w2"><div className="l">Caja proyectada · 13 semanas</div><svg viewBox="0 0 300 90" style={{ width: "100%", height: 96, marginTop: 6 }}><line x1="0" y1="62" x2="300" y2="62" stroke="#B8412C" strokeDasharray="5 4" /><path d="M0,40 C40,55 60,20 100,28 S160,60 190,48 S240,15 270,40 S290,30 300,30" fill="none" stroke="#1F6B45" strokeWidth="3.5" strokeLinecap="round" /></svg></div>;
-    case "cli": return <div className="ob-tile ob-fly w2"><div className="l">Clientes · antigüedad de deuda</div><div className="ob-minibar">{[[66, "#2F7D4F"], [11, "#EE9F86"], [6, "#E0704F"], [3, "#C84A30"], [14, "#9E2D1D"]].map(([f, c], i) => <i key={i} style={{ flex: f as number, background: c as string }} />)}</div><div className="ob-rowx" style={{ marginTop: 8 }}><span>Almacén Don Tito</span><b style={{ color: "#B8412C" }}>124 días</b></div><div className="ob-rowx"><span>Supermercado La Esquina</span><b style={{ color: "#B8412C" }}>97 días</b></div></div>;
+    case "pyl": return <div onClick={onOpen} className="ob-tile ob-fly ob-click w2"><div className="l">Estado de resultados · octubre</div>{[["Ventas", "286,4"], ["Costos", "−171,8"], ["Gastos", "−72,8"], ["EBITDA", "41,8"], ["Resultado neto", "22,3"]].map(([a, b]) => <div key={a} className="ob-rowx"><span>{a}</span><b>{b}</b></div>)}</div>;
+    case "caja": return <div onClick={onOpen} className="ob-tile ob-fly ob-click w2"><div className="l">Caja proyectada · 13 semanas</div><svg viewBox="0 0 300 90" style={{ width: "100%", height: 96, marginTop: 6 }}><line x1="0" y1="62" x2="300" y2="62" stroke="#B8412C" strokeDasharray="5 4" /><path d="M0,40 C40,55 60,20 100,28 S160,60 190,48 S240,15 270,40 S290,30 300,30" fill="none" stroke="#1F6B45" strokeWidth="3.5" strokeLinecap="round" /></svg></div>;
+    case "cli": return <div onClick={onOpen} className="ob-tile ob-fly ob-click w2"><div className="l">Clientes · antigüedad de deuda</div><div className="ob-minibar">{[[66, "#2F7D4F"], [11, "#EE9F86"], [6, "#E0704F"], [3, "#C84A30"], [14, "#9E2D1D"]].map(([f, c], i) => <i key={i} style={{ flex: f as number, background: c as string }} />)}</div><div className="ob-rowx" style={{ marginTop: 8 }}><span>Almacén Don Tito</span><b style={{ color: "#B8412C" }}>124 días</b></div><div className="ob-rowx"><span>Bar El Encuentro</span><b style={{ color: "#B8412C" }}>97 días</b></div></div>;
     case "fac": return <T l="Facturado este mes" v="$ 98 M" c="42 facturas" cl="g" />;
-    case "prov": return <div className="ob-tile ob-fly w2"><div className="l">A pagar · próximas 4 semanas</div><div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 70, marginTop: 10 }}>{[12, 18, 8, 14].map((v, i) => <i key={i} style={{ flex: 1, height: v * 3.6, background: i ? "#C9D3CC" : "#D9A63E", borderRadius: "6px 6px 0 0", display: "block" }} />)}</div></div>;
+    case "prov": return <div onClick={onOpen} className="ob-tile ob-fly ob-click w2"><div className="l">A pagar · próximas 4 semanas</div><div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 70, marginTop: 10 }}>{[12, 18, 8, 14].map((v, i) => <i key={i} style={{ flex: 1, height: v * 3.6, background: i ? "#C9D3CC" : "#D9A63E", borderRadius: "6px 6px 0 0", display: "block" }} />)}</div></div>;
     case "iva": return <T l="IVA a pagar · nov" v="$ 7,4 M" c="vence el 18" cl="w" />;
     case "soc": return <T l="Reporte a socios" v="Viernes 17 h" c="listo para revisar" cl="g" />;
     case "ppto": return <T l="Presupuesto" v="98%" c="ventas vs. objetivo" cl="g" />;
     case "stock": return <T l="Stock valorizado" v="$ 54 M" c="7 productos bajo mínimo" cl="w" />;
-    case "cap": return <div className="ob-tile ob-fly w2"><div className="l">Capital de trabajo operativo</div><div className="v">$ 66,7 M</div><div className="ob-rowx" style={{ marginTop: 6 }}><span>Te deben clientes</span><b>$ 138,0 M</b></div><div className="ob-rowx"><span>Debés a proveedores</span><b>− $ 71,3 M</b></div></div>;
+    case "cap": return <div onClick={onOpen} className="ob-tile ob-fly ob-click w2"><div className="l">Capital de trabajo operativo</div><div className="v">$ 66,7 M</div><div className="ob-rowx" style={{ marginTop: 6 }}><span>Te deben clientes</span><b>$ 138,0 M</b></div><div className="ob-rowx"><span>Debés a proveedores</span><b>− $ 71,3 M</b></div></div>;
     case "ciclo": return <T l="Ciclo de la plata" v="8 días" c="cobrás a 41 · pagás a 33" cl="w" />;
     case "eq": return <T l="Punto de equilibrio" v="$ 214 M" c="octubre lo superó 34%" cl="g" />;
-    case "ia": return <div className="ob-tile ob-fly w2"><div className="l">Asistente</div><div style={{ fontSize: 13, marginTop: 8 }}>“¿Por qué bajó el margen en julio?”</div><div style={{ fontSize: 12, color: "#7C8B84", marginTop: 6 }}>Subieron fletes 18% y hubo 2 facturas de agosto cargadas en julio.</div></div>;
-    default: return <div className="ob-tile ob-fly" style={{ borderStyle: "dashed" }}><div className="l">{m.label}</div><div style={{ fontSize: 13, marginTop: 8, color: "#4A5B53" }}>Lo estamos preparando para vos.</div><span className="c w">pedido especial</span></div>;
+    case "ia": return <div onClick={onOpen} className="ob-tile ob-fly ob-click w2"><div className="l">Asistente</div><div style={{ fontSize: 13, marginTop: 8 }}>“¿Por qué bajó el margen en julio?”</div><div style={{ fontSize: 12, color: "#7C8B84", marginTop: 6 }}>Subieron fletes 18% y hubo 2 facturas de agosto cargadas en julio.</div></div>;
+    default: return <div onClick={onOpen} className="ob-tile ob-fly ob-click" style={{ borderStyle: "dashed" }}><div className="l">{m.label}</div><div style={{ fontSize: 13, marginTop: 8, color: "#4A5B53" }}>Lo estamos preparando para vos.</div><span className="c w">pedido especial</span></div>;
   }
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Mark, Wordmark } from "@/components/Logo";
 import { OB_STORAGE } from "@/lib/onboarding";
@@ -9,6 +9,12 @@ type Field = { name: string; label: string; type?: string; placeholder?: string;
 export default function AuthForm({ mode }: { mode: "login" | "registro" }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [preset, setPreset] = useState<Record<string, string>>({});
+  // Si armó su Numo en el inicio, trae el nombre de la empresa que escribió
+  useEffect(() => {
+    if (mode !== "registro") return;
+    try { const o = JSON.parse(localStorage.getItem(OB_STORAGE) ?? "null"); if (o?.company) setPreset({ empresa: String(o.company) }); } catch { /* nada */ }
+  }, [mode]);
   const fields: Field[] = mode === "registro"
     ? [
         { name: "empresa", label: "Nombre de tu empresa", placeholder: "Ej: Distribuidora Norte SRL", auto: "organization" },
@@ -38,7 +44,7 @@ export default function AuthForm({ mode }: { mode: "login" | "registro" }) {
         }
       } catch { /* si falla, se puede elegir de nuevo */ }
     }
-    window.location.href = mode === "registro" ? "/app/conexiones" : "/app";
+    window.location.href = "/app"; // al registrarse entra a su Numo armado, con la empresa demo para recorrer
   }
 
   return (
@@ -58,12 +64,12 @@ export default function AuthForm({ mode }: { mode: "login" | "registro" }) {
         <form className="auth-card" onSubmit={submit}>
           <h1>{mode === "registro" ? "Creá tu cuenta" : "Entrá a Numo"}</h1>
           <p className="muted" style={{ marginTop: 6 }}>
-            {mode === "registro" ? "Conectás tu sistema contable en 2 minutos." : "Tu tablero te está esperando."}
+            {mode === "registro" ? "Entrás con tu Numo armado y una empresa de ejemplo. Conectás tu Colppy cuando quieras." : "Tu tablero te está esperando."}
           </p>
           {fields.map((f) => (
             <div key={f.name}>
               <label htmlFor={f.name}>{f.label}</label>
-              <input id={f.name} name={f.name} type={f.type ?? "text"} placeholder={f.placeholder} autoComplete={f.auto} required />
+              <input key={preset[f.name] ?? ""} defaultValue={preset[f.name]} id={f.name} name={f.name} type={f.type ?? "text"} placeholder={f.placeholder} autoComplete={f.auto} required />
             </div>
           ))}
           {error && <div className="error">{error}</div>}

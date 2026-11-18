@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { errorResponse, getCompany, HttpError, requireSession } from "@/lib/auth";
+import { isDemo } from "@/lib/demo";
 import { daysLate, docKind, partyKind } from "@/lib/deuda";
 import { deliver, docLabel, mailConfig, renderMail, splitEmails, type Tone } from "@/lib/mail";
 import { colppyFor } from "@/lib/colppySession";
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
       payDate: b.payDate, payAmount: b.payAmount,
     });
     if (b.preview) return Response.json({ html, configured: !!(cfg?.smtpUser && cfg.smtpPassEnc) });
+    if (isDemo(company)) throw new HttpError(400, "En la empresa demo no se mandan mails: es para mirar cómo quedaría. Con tu Colppy conectado, sale de verdad.");
 
     const to = splitEmails(b.to);
     const cc = splitEmails([b.cc, cfg?.ccDefault].filter(Boolean).join(","));

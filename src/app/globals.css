@@ -279,9 +279,9 @@ select.warn { border-color: var(--yellow); color: var(--yellow); }
 .ob-caret { display: inline-block; width: 7px; height: 1.1em; background: var(--o-lg); vertical-align: -2px; margin-left: 2px; animation: ob-blink 1s steps(1) infinite; }
 @keyframes ob-blink { 50% { opacity: 0; } }
 .ob-spark { position: fixed; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; z-index: 40; }
-.ob-build { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px 16px; }
-.ob-app { width: min(1100px, 100%); height: min(660px, 86vh); background: #F3F5F1; color: #15261F; border-radius: 18px; overflow: hidden; display: grid; grid-template-columns: 210px minmax(0, 1fr); box-shadow: 0 40px 120px rgba(0,0,0,.55); --brand-mark: #4FB383; }
-.ob-side { background: #15261F; padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; color: #C9D6CF; }
+.ob-build { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px 16px 104px; }
+.ob-app { width: min(1100px, 100%); height: min(680px, calc(100vh - 130px)); background: #F3F5F1; color: #15261F; border-radius: 18px; overflow: hidden; display: grid; grid-template-columns: 236px minmax(0, 1fr); box-shadow: 0 40px 120px rgba(0,0,0,.55); --brand-mark: #4FB383; }
+.ob-side { background: #15261F; padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; color: #C9D6CF; overflow-y: auto; min-height: 0; }
 .ob-t { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #6F837A; padding: 12px 8px 4px; font-weight: 600; }
 .ob-nav { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 500; }
 .ob-nav svg { width: 15px; height: 15px; opacity: .85; flex: none; }
@@ -305,9 +305,78 @@ select.warn { border-color: var(--yellow); color: var(--yellow); }
 .ob-done b { font-size: 15px; }
 .ob-done span { color: var(--o-ink2); font-size: 13px; display: block; }
 @media (max-width: 760px) {
-  .ob-app { grid-template-columns: 1fr; height: auto; max-height: 86vh; }
-  .ob-side { display: none; }
+  .ob-app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); height: calc(100vh - 150px); }
+  .ob-side { flex-direction: row; overflow-x: auto; padding: 10px; gap: 6px; align-items: flex-start; }
+  .ob-side .ob-t, .ob-side .ob-brand { display: none; }
+  .ob-nav { white-space: nowrap; flex: none; }
+  .ob-add { flex: none; }
+  .ob-guide-t { display: none; }
+  .ob-done { bottom: 10px; padding: 10px; gap: 8px; flex-wrap: nowrap; }
+  .ob-done > div { display: none; }
+  .ob-done .ob-btn { padding: 10px 12px; font-size: 14px; white-space: nowrap; }
+  .ob-build { padding: 12px 10px 78px; }
+  .ob-app { height: calc(100vh - 92px); }
+  .ob-add { flex-direction: row; }
   .ob-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ob-stage { margin-top: 6vh; }
 }
 @media (prefers-reduced-motion: reduce) { .ob *, .ob-glow { animation: none !important; transition: none !important; } }
+/* Banner de la empresa demo */
+.demo-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; background: var(--bg2); border: 1px dashed var(--green); border-radius: 12px; padding: 12px 16px; margin-bottom: 18px; }
+.demo-banner b { display: block; font-size: 14px; }
+.demo-banner span { color: var(--text3); font-size: 13px; }
+
+/* Inicio: el Numo armado se recorre y se edita */
+.ob-brand { padding: 2px 8px 10px; color: #F3F5F1; }
+.ob-nav { cursor: pointer; position: relative; transition: background .15s; }
+.ob-nav:hover { background: rgba(255,255,255,.06); }
+.ob-nav-l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-rm { border: 0; background: none; color: #8FA399; font-size: 11px; cursor: pointer; padding: 2px 4px; border-radius: 4px; opacity: 0; transition: opacity .15s; }
+.ob-nav:hover .ob-rm, .ob-nav.on .ob-rm { opacity: 1; }
+.ob-rm:hover { color: #fff; background: rgba(255,255,255,.12); }
+@media (hover: none) { .ob-rm { opacity: .8; } }
+.ob-add { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.ob-add-btn { border: 1px dashed #3A5248; background: none; color: #A9C3B6; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+.ob-add-btn:hover { color: #fff; border-color: #4FB383; }
+.ob-add-opt { display: flex; align-items: center; gap: 8px; border: 0; background: rgba(79,179,131,.08); color: #C9D6CF; border-radius: 7px; padding: 6px 9px; font: inherit; font-size: 12px; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ob-add-opt svg { width: 13px; height: 13px; flex: none; }
+.ob-add-opt:hover { background: rgba(79,179,131,.2); color: #fff; }
+.ob-guide { display: flex; align-items: center; gap: 12px; background: #15261F; color: #DDE7E2; border-radius: 12px; padding: 9px 10px 9px 14px; margin-bottom: 18px; font-size: 13px; }
+.ob-step { background: #4FB383; color: #0F1714; font-weight: 700; font-size: 11.5px; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+.ob-guide-t { flex: 1; color: #B9CBC2; }
+.ob-arrows { display: flex; gap: 6px; margin-left: auto; }
+.ob-arrows button { width: 32px; height: 30px; border-radius: 8px; border: 1px solid #2F4A3E; background: #1C3329; color: #fff; font-size: 15px; cursor: pointer; }
+.ob-arrows button:disabled { opacity: .3; cursor: default; }
+.ob-arrows button:not(:disabled):hover { background: #4FB383; color: #0F1714; }
+.ob-hi { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ob-name { font: inherit; font-size: 22px; font-weight: 800; letter-spacing: -.03em; color: #1F6B45; background: transparent; border: 0; border-bottom: 2px dashed #A9C9B6; padding: 0 2px; width: min(360px, 100%); outline: none; }
+.ob-name:focus { border-bottom-color: #1F6B45; box-shadow: none; }
+.ob-name::placeholder { color: #A9C9B6; }
+.ob-click { cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.ob-click:hover { border-color: #4FB383; box-shadow: 0 6px 20px rgba(21,38,31,.08); }
+.ob-page { display: flex; flex-direction: column; gap: 14px; animation: ob-pop .3s both; }
+.ob-page h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ob-page .ob-sub { margin: -8px 0 0; }
+.ob-page .ob-tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ob-soon { font-size: 11px; font-weight: 700; letter-spacing: 0; background: #F8EDD5; color: #A8700E; padding: 3px 9px; border-radius: 99px; }
+.ob-card { background: #fff; border: 1px solid #DCE3DA; border-radius: 14px; padding: 14px; }
+.ob-card .l { font-size: 11.5px; color: #7C8B84; font-weight: 500; }
+.ob-card p { font-size: 14px; line-height: 1.55; color: #33463D; }
+.ob-tbl { padding: 4px 0; overflow-x: auto; }
+.ob-tbl table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ob-tbl th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: #7C8B84; font-weight: 600; padding: 9px 14px; border-bottom: 1px solid #EEF2EC; }
+.ob-tbl td { padding: 9px 14px; border-bottom: 1px solid #EEF2EC; }
+.ob-tbl tr:last-child td { border-bottom: 0; }
+.ob-tbl .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ob-tbl tr.can { cursor: pointer; }
+.ob-tbl tr.can:hover td { background: #F3F7F2; }
+.ob-tbl tr.open td { background: #EAF4EE; font-weight: 600; }
+.ob-tbl tr.sub td { background: #F7FAF6; color: #4A5B53; font-size: 12.5px; padding-top: 6px; padding-bottom: 6px; }
+.ob-tbl tr.sub td:first-child { padding-left: 34px; }
+.ob-tbl tr.t-b td { color: #B8412C; } .ob-tbl tr.t-w td { color: #A8700E; } .ob-tbl tr.t-g td { color: #1F6B45; font-weight: 700; }
+.ob-car { display: inline-block; width: 16px; color: #4FB383; }
+.ob-tip { background: #EAF4EE; border-left: 3px solid #4FB383; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #24423A; line-height: 1.5; }
+.ob-can .l { font-size: 11.5px; color: #7C8B84; font-weight: 600; margin-bottom: 8px; }
+.ob-can div:last-child { display: flex; flex-wrap: wrap; gap: 8px; }
+.ob-can span { background: #fff; border: 1px solid #DCE3DA; border-radius: 99px; padding: 6px 12px; font-size: 12.5px; color: #33463D; }
+.ob-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.5; color: #33463D; }

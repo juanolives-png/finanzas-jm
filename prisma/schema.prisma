@@ -48,7 +48,7 @@ model Company {
   tenantId        String    @map("tenant_id")
   name            String
   cuit            String?
-  source          String    @default("colppy")
+  source          String    @default("colppy") /// colppy | demo (empresa de ejemplo con números inventados)
   colppyEmpresaId String?   @map("colppy_empresa_id")
   colppyUser      String?   @map("colppy_user")
   colppyPassEnc   String?   @map("colppy_pass_enc")
@@ -100,6 +100,10 @@ model LedgerEntry {
   contactId String?  @map("contact_id")
   cc1       String?
   cc2       String?
+  /// De dónde sale el renglón: idTabla + idElemento de Colppy (8 = factura de compra, etc.). Con srcId se llega al comprobante.
+  srcTable    String?  @map("src_table")
+  srcId       String?  @map("src_id")
+  contactType String?  @map("contact_type") /// idElementoContacto: 3 = proveedor
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, colppyId])

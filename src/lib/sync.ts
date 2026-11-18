@@ -13,6 +13,7 @@ import { propose, type TemplateKey } from "./categories";
 import { syncDocs } from "./syncDocs";
 import { chunks, inChunks, pool } from "./batch";
 import { STAGES, type Progress } from "./progress";
+import { isDemo, seedDemo } from "./demo";
 
 type Movement = Record<string, any>;
 const num = (v: unknown) => { const n = Number(String(v ?? "0").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
@@ -121,6 +122,9 @@ async function syncMonth(companyId: string, c: ColppyClient, idEmpresa: string, 
       contactId: m.idObjetoContacto != null ? String(m.idObjetoContacto) : null,
       cc1: m.ccosto1 ? String(m.ccosto1) : null,
       cc2: m.ccosto2 ? String(m.ccosto2) : null,
+      srcTable: m.idTabla != null && m.idTabla !== "" ? String(m.idTabla) : null,
+      srcId: m.idElemento != null && String(m.idElemento) !== "0" ? String(m.idElemento) : null,
+      contactType: m.idElementoContacto != null ? String(m.idElementoContacto) : null,
     });
   }
   // El mes se reemplaza entero: así se reflejan asientos borrados o corregidos en Colppy.
@@ -142,6 +146,16 @@ export const isSyncing = (companyId: string) => running.has(companyId);
 export async function startSync(companyId: string, trigger: string) {
   if (running.has(companyId)) throw Object.assign(new Error("Ya se está actualizando"), { status: 409 });
   const company = await db.company.findUniqueOrThrow({ where: { id: companyId } });
+  // Empresa demo: no hay Colppy; "Actualizar" vuelve a generar los números al día de hoy
+  if (isDemo(company)) {
+    running.add(companyId);
+    const run = await db.syncRun.create({ data: { companyId, trigger, progress: "Armando la empresa demo…", percent: 10 } });
+    seedDemo(companyId)
+      .then((summary) => db.syncRun.update({ where: { id: run.id }, data: { ok: true, finishedAt: new Date(), progress: "Listo", percent: 100, summary } }))
+      .catch((e) => db.syncRun.update({ where: { id: run.id }, data: { ok: false, finishedAt: new Date(), error: e instanceof Error ? e.message : String(e) } }))
+      .finally(() => running.delete(companyId));
+    return run;
+  }
   if (!company.colppyUser || !company.colppyPassEnc || !company.colppyEmpresaId) throw new Error("La empresa no tiene Colppy conectado");
   running.add(companyId);
   const run = await db.syncRun.create({ data: { companyId, trigger, progress: "Conectando con Colppy…", percent: 0 } });
