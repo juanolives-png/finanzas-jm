@@ -200,6 +200,7 @@ select.warn { border-color: var(--yellow); color: var(--yellow); }
 .contact-row { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 13px; color: var(--text2); }
 .pdf-link { margin-left: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 6px; border-radius: 5px; background: var(--red3); color: var(--red); font-family: Inter, sans-serif; }
 .pdf-link:hover { filter: brightness(1.1); }
+.no-pdf { margin-left: 8px; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 5px; border: 1px dashed var(--line, rgba(127,127,127,.35)); color: var(--muted, #8a8f98); font-family: Inter, sans-serif; white-space: nowrap; cursor: help; }
 
 /* Tablero: tiras de deuda */
 .debt-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }

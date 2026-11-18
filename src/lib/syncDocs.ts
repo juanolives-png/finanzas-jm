@@ -52,7 +52,7 @@ async function upsertDocs(companyId: string, kind: "venta" | "compra", rows: Row
   const types = kind === "venta" ? SALE_TYPE : PURCHASE_TYPE;
   const existing = new Map((await db.doc.findMany({
     where: { companyId, kind, date: { gte: from } },
-    select: { id: true, colppyId: true, total: true, applied: true, dueDate: true, partyName: true, number: true },
+    select: { id: true, colppyId: true, total: true, applied: true, dueDate: true, partyName: true, number: true, cae: true },
   })).map((d) => [d.colppyId, d]));
   const seen = new Set<string>();
   const parties = new Map<string, PartyInfo>();
@@ -71,6 +71,7 @@ async function upsertDocs(companyId: string, kind: "venta" | "compra", rows: Row
     const dueDate = parseDate(f.fechaPago) ?? parseDate(f.fechaVencimiento);
     const data = {
       partyId, partyName, docType, letter: LETTER[String(f.idTipoFactura ?? "").toUpperCase()] ?? null,
+      cae: String(f.cae ?? f.CAE ?? "").replace(/\D/g, "") || null,
       number: String(f.nroFactura ?? ""), date, dueDate,
       description: f.descripcion ? String(f.descripcion).slice(0, 500) : null, total, applied, pending: r2(total - applied),
     };
@@ -79,7 +80,7 @@ async function upsertDocs(companyId: string, kind: "venta" | "compra", rows: Row
     const prev = existing.get(colppyId);
     if (!prev) { creates.push({ companyId, kind, colppyId, ...data }); continue; }
     const changed = Number(prev.total) !== total || Number(prev.applied) !== applied || (prev.dueDate?.getTime() ?? 0) !== (dueDate?.getTime() ?? 0)
-      || prev.partyName !== partyName || prev.number !== data.number;
+      || prev.partyName !== partyName || prev.number !== data.number || (prev.cae ?? null) !== data.cae;
     if (changed) updates.push(db.doc.update({ where: { id: prev.id }, data }));
   }
   for (const part of chunks(creates, 2000)) await db.doc.createMany({ data: part, skipDuplicates: true });

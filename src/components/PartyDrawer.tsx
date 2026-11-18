@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { defaultIntro, defaultSubject, docLabel, TONE_LABEL, toneFor, type MailKind, type Tone } from "@/lib/mailTemplates";
 import type { Kind } from "@/lib/deuda";
 
-type Doc = { id: string; docType: string; letter: string | null; number: string; date: string; dueDate: string | null; total: number; pending: number; late: number; description: string | null };
+type Doc = { id: string; docType: string; letter: string | null; number: string; electronic?: boolean; date: string; dueDate: string | null; total: number; pending: number; late: number; description: string | null };
 type Detail = {
   party: { id: string; name: string; alias: string | null; cuit: string | null; email: string | null; phone: string | null; address: string | null; ivaCondition: string | null };
   docs: Doc[];
@@ -86,7 +86,7 @@ export default function PartyDrawer({ companyId, companyName, kind, partyId, onC
                       {d.docs.map((x) => (
                         <tr key={x.id} onClick={() => toggle(x.id)} style={{ cursor: "pointer" }}>
                           <td><input type="checkbox" checked={sel.has(x.id)} readOnly style={{ width: "auto" }} /></td>
-                          <td><div className="mono">{docLabel(x)}{isCli && <a className="pdf-link" href={`/api/factura/pdf?company=${companyId}&doc=${x.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Ver la factura en PDF">PDF</a>}</div><div className="muted small">{dmy(x.date)}{x.description ? ` · ${x.description.slice(0, 60)}` : ""}</div></td>
+                          <td><div className="mono">{docLabel(x)}{isCli && !x.electronic && <span className="no-pdf" title="Comprobante no electrónico (X, I u otro interno): no figura en ARCA y Colppy no genera PDF">sin factura ARCA</span>}{isCli && x.electronic && <a className="pdf-link" href={`/api/factura/pdf?company=${companyId}&doc=${x.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Ver la factura en PDF">PDF</a>}</div><div className="muted small">{dmy(x.date)}{x.description ? ` · ${x.description.slice(0, 60)}` : ""}</div></td>
                           <td className="small">{dmy(x.dueDate)}</td>
                           <td className={`num mono ${x.pending < 0 ? "up" : ""}`}>{money(x.pending)}</td>
                           <td className="num small">{x.pending < 0 ? <span className="up">a favor</span> : x.late > 0 ? <span className={x.late > 60 ? "down" : ""}>{isCli ? `${x.late} días` : "vencida"}</span> : <span className="muted">{isCli ? "al día" : `en ${-x.late} días`}</span>}</td>

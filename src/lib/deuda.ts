@@ -97,7 +97,7 @@ export async function partyDetail(companyId: string, kind: Kind, partyId: string
       ? { id: party.colppyId, name: party.name, alias: party.alias, cuit: party.cuit, email: party.email, phone: party.phone, address: [party.address, party.city, party.province].filter(Boolean).join(", ") || null, ivaCondition: party.ivaCondition }
       : { id: partyId, name: docs[0]?.partyName ?? partyId, alias: null, cuit: null, email: null, phone: null, address: null, ivaCondition: null },
     docs: docs.map((d) => ({
-      id: d.id, docType: d.docType, letter: d.letter, number: d.number, date: d.date.toISOString().slice(0, 10),
+      id: d.id, docType: d.docType, letter: d.letter, number: d.number, electronic: !!d.cae, date: d.date.toISOString().slice(0, 10),
       dueDate: d.dueDate ? d.dueDate.toISOString().slice(0, 10) : null, total: Number(d.total), pending: Number(d.pending),
       late: daysLate(d.dueDate, d.date, today), description: d.description,
     })),

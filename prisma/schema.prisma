@@ -158,6 +158,7 @@ model Doc {
   partyName   String    @map("party_name")
   docType     String    @map("doc_type") // FAV | NCV | NDV | FAC | NCC | NDC
   letter      String?
+  cae         String? /// sólo los comprobantes electrónicos tienen CAE (y sólo esos tienen PDF en Colppy)
   number      String
   date        DateTime
   dueDate     DateTime? @map("due_date")
