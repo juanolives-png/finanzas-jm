@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { errorResponse, getCompany, HttpError, requireSession } from "@/lib/auth";
 import { daysLate, docKind, partyKind } from "@/lib/deuda";
-import { deliver, mailConfig, renderMail, splitEmails, type Tone } from "@/lib/mail";
+import { deliver, docLabel, mailConfig, renderMail, splitEmails, type Tone } from "@/lib/mail";
+import { colppyFor } from "@/lib/colppySession";
 
 const Body = z.object({
   company: z.string(),
@@ -19,6 +20,7 @@ const Body = z.object({
   payDate: z.string().nullable().optional(),
   payAmount: z.number().nullable().optional(),
   preview: z.boolean().optional(),
+  attachPdfs: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -49,8 +51,19 @@ export async function POST(req: Request) {
     const amount = b.payAmount ?? mailDocs.reduce((a, d) => a + d.pending, 0);
     const party = await db.party.findUnique({ where: { companyId_kind_colppyId: { companyId: company.id, kind: partyKind(debtKind), colppyId: b.party } } });
     const log = { companyId: company.id, kind: b.kind, partyId: b.party, partyName: party?.name ?? docs[0].partyName, to: to.join(", "), cc: cc.join(", ") || null, subject: b.subject, tone: b.tone ?? null, amount, docs: docs.map((d) => d.id), sentBy: s.email };
+    // PDFs de las facturas (sólo ventas electrónicas; las que Colppy no genera se mandan sin PDF)
+    const attachments: { filename: string; content: Buffer }[] = [];
+    const sinPdf: string[] = [];
+    if (b.attachPdfs && b.kind === "reclamo_cliente") {
+      const c = await colppyFor(company).catch(() => null);
+      for (const d of docs) {
+        if (!c) { sinPdf.push(docLabel(d)); continue; }
+        try { attachments.push({ filename: docLabel(d).replace(/\s+/g, "_") + ".pdf", content: await c.pdf(d.colppyId) }); }
+        catch { sinPdf.push(docLabel(d)); }
+      }
+    }
     try {
-      await deliver(s.tenantId, { to, cc, subject: b.subject, html, text });
+      await deliver(s.tenantId, { to, cc, subject: b.subject, html, text, attachments });
       await db.mailLog.create({ data: { ...log, ok: true } });
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
@@ -59,7 +72,7 @@ export async function POST(req: Request) {
     }
     // Si no tenía mail guardado, queda el que se usó
     if (party && !party.email) await db.party.update({ where: { id: party.id }, data: { email: to.join(", "), emailManual: true } });
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, adjuntos: attachments.length, sinPdf });
   } catch (e) { return errorResponse(e); }
 }
 

@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 
 const URL = process.env.COLPPY_URL ?? "https://login.colppy.com/lib/frontera2/service.php";
+const PDF_URL = "https://login.colppy.com/resources/Provisiones/ColppyCommon/GenerarFactura.php";
 const md5 = (s: string) => createHash("md5").update(s).digest("hex");
 
 export class ColppyError extends Error {
@@ -79,6 +80,41 @@ export class ColppyClient {
   requireEmpresa() {
     if (!this.empresaId) throw new ColppyError("Falta elegir la empresa de Colppy");
     return this.empresaId;
+  }
+
+  /** Detalle de un comprobante de venta: cabecera (vto, condición, CAE, idCliente) + renglones. */
+  async leerFacturaVenta(idFactura: string) {
+    const idEmpresa = this.requireEmpresa();
+    const r = await this.call("FacturaVenta", "leer_facturaventa", { idEmpresa, idFactura });
+    return { info: (r.infofactura ?? {}) as Record<string, any>, items: (r.itemsFactura ?? []) as Record<string, any>[], pdfBase: r.UrlFacturaPdf as string | undefined };
+  }
+
+  /** PDF de un comprobante electrónico (con CAE), tal cual lo genera Colppy. (Viene de Infocampo.) */
+  async pdf(idFactura: string): Promise<Buffer> {
+    const idEmpresa = this.requireEmpresa();
+    const { info, pdfBase } = await this.leerFacturaVenta(idFactura);
+    const q = new URLSearchParams({ usuario: this.session.usuario, claveSesion: this.session.claveSesion, idEmpresa, idFactura, idCliente: String(info.idCliente ?? "") });
+    const res = await fetch(`${String(pdfBase || PDF_URL)}?${q}`, { signal: AbortSignal.timeout(60_000), cache: "no-store" });
+    const type = res.headers.get("content-type") ?? "";
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!type.includes("pdf") || buf.subarray(0, 4).toString() !== "%PDF") {
+      const txt = buf.toString("utf8").slice(0, 200);
+      throw new ColppyError(/no es electronica/i.test(txt) ? "Esta factura no es electrónica: Colppy no genera el PDF" : `Colppy no devolvió el PDF (${res.status})`, txt);
+    }
+    return buf;
+  }
+
+  /** Ítems de inventario (productos y servicios) con su disponibilidad. */
+  async itemsInventario(): Promise<Record<string, any>[]> {
+    const idEmpresa = this.requireEmpresa();
+    const out: Record<string, any>[] = [];
+    for (let start = 0; start < 50_000; start += 500) {
+      const r = await this.call("Inventario", "listar_itemsinventario", { idEmpresa, start, limit: 500, filter: [] });
+      const page = (Array.isArray(r?.data) ? r.data : []) as Record<string, any>[];
+      out.push(...page);
+      if (page.length < 500) break;
+    }
+    return out;
   }
 
   async logout() {

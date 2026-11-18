@@ -15,12 +15,13 @@ const IC: Record<string, string> = {
   caja: "M3 7h18v12H3zM3 11h18M7 15h3", cli: "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
   fac: "M6 3h9l3 3v15H6zM9 9h6M9 13h6M9 17h4", prov: "M1 4h14v11H1zm14 4h4l3 3v4h-7", iva: "M19 5 5 19M7 7h.01M17 17h.01",
   soc: "M4 4h16v12H4zM8 20h8M12 16v4", ppto: "M12 3v9l6 3M21 12a9 9 0 1 1-9-9", ia: "M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z",
+  stock: "M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8",
   cap: "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", ciclo: "M21 12a9 9 0 1 1-3-6.7M21 4v5h-5", eq: "M3 17l6-6 4 4 8-8M14 7h7v7", x: "M12 5v14M5 12h14",
 };
 const Ico = ({ k }: { k: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[k] ?? IC.x} /></svg>
 );
-const SUGGESTIONS = ["Quiero un dashboard financiero", "Quiero tener un P&L", "Llevar las cobranzas y la facturación", "Controlar a mis proveedores", "Saber cuánta caja voy a tener", "Ver mi capital de trabajo", "Mandar un reporte a mis socios"];
+const SUGGESTIONS = ["Quiero un dashboard financiero", "Quiero tener un P&L", "Llevar las cobranzas y la facturación", "Controlar a mis proveedores", "Saber cuánta caja voy a tener", "Ver mi capital de trabajo", "Controlar el stock", "Mandar un reporte a mis socios"];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function Onboarding({ loggedIn }: { loggedIn: boolean }) {
@@ -243,6 +244,7 @@ function Tile({ m }: { m: ObModule }) {
     case "iva": return <T l="IVA a pagar · nov" v="$ 7,4 M" c="vence el 18" cl="w" />;
     case "soc": return <T l="Reporte a socios" v="Viernes 17 h" c="listo para revisar" cl="g" />;
     case "ppto": return <T l="Presupuesto" v="98%" c="ventas vs. objetivo" cl="g" />;
+    case "stock": return <T l="Stock valorizado" v="$ 54 M" c="7 productos bajo mínimo" cl="w" />;
     case "cap": return <div className="ob-tile ob-fly w2"><div className="l">Capital de trabajo operativo</div><div className="v">$ 66,7 M</div><div className="ob-rowx" style={{ marginTop: 6 }}><span>Te deben clientes</span><b>$ 138,0 M</b></div><div className="ob-rowx"><span>Debés a proveedores</span><b>− $ 71,3 M</b></div></div>;
     case "ciclo": return <T l="Ciclo de la plata" v="8 días" c="cobrás a 41 · pagás a 33" cl="w" />;
     case "eq": return <T l="Punto de equilibrio" v="$ 214 M" c="octubre lo superó 34%" cl="g" />;

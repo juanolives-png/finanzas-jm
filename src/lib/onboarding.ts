@@ -14,6 +14,7 @@ export const OB_MODULES: ObModule[] = [
   { id: "soc", label: "Reporte a socios", kw: ["socio", "reporte", "directorio", "informe", "accionista"], nav: ["reporte-socios"] },
   { id: "ppto", label: "Presupuesto y objetivos", kw: ["presupuesto", "objetivo", "meta", "budget"], nav: ["presupuesto"] },
   { id: "ia", label: "Asistente con IA", kw: ["preguntarle", "asistente", " ia ", " ia,", "inteligencia artificial", "chat"], nav: ["asistente"] },
+  { id: "stock", label: "Stock e inventario", kw: ["stock", "inventario", "mercaderia", "productos", "reponer", "deposito", "existencia"], nav: ["stock"] },
   { id: "cap", label: "Capital de trabajo", kw: ["capital de trabajo", "working capital", "capital operativo", "activo corriente", "pasivo corriente", "liquidez corriente"], nav: ["tablero"] },
   { id: "ciclo", label: "Ciclo de la plata (días de cobro y pago)", kw: ["dias de cobro", "dias de pago", "ciclo", "rotacion", "cuanto tardo en cobrar"], nav: ["tablero"] },
   { id: "eq", label: "Punto de equilibrio", kw: ["equilibrio", "break even", "cuanto tengo que vender", "cuanto necesito vender"], nav: ["tablero"] },

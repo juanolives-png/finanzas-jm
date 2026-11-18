@@ -7,7 +7,7 @@ import type { Kind } from "@/lib/deuda";
 
 type Doc = { id: string; docType: string; letter: string | null; number: string; date: string; dueDate: string | null; total: number; pending: number; late: number; description: string | null };
 type Detail = {
-  party: { id: string; name: string; alias: string | null; cuit: string | null; email: string | null; phone: string | null };
+  party: { id: string; name: string; alias: string | null; cuit: string | null; email: string | null; phone: string | null; address: string | null; ivaCondition: string | null };
   docs: Doc[];
   mails: { at: string; kind: string; tone: string | null; to: string; subject: string; amount: number; ok: boolean; error: string | null }[];
 };
@@ -55,12 +55,18 @@ export default function PartyDrawer({ companyId, companyName, kind, partyId, onC
           <>
             <div className="drawer-head">
               <div>
-                <div className="crumb">{isCli ? "Cliente" : "Proveedor"}{d.party.cuit ? ` · CUIT ${d.party.cuit}` : ""}</div>
+                <div className="crumb">{isCli ? "Cliente" : "Proveedor"}{d.party.cuit ? ` · CUIT ${d.party.cuit}` : ""}{d.party.ivaCondition ? ` · ${d.party.ivaCondition}` : ""}</div>
                 <h2>{d.party.name}</h2>
               </div>
               <button className="link-btn" onClick={onClose} style={{ fontSize: 20 }}>×</button>
             </div>
 
+            {(d.party.phone || d.party.address) && (
+              <div className="contact-row">
+                {d.party.phone && <span>📞 {d.party.phone}</span>}
+                {d.party.address && <span>📍 {d.party.address}</span>}
+              </div>
+            )}
             <div className="email-row">
               <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="mail@cliente.com (podés poner varios separados por coma)" />
               <button className="btn ghost sm" disabled={savingEmail || email === (d.party.email ?? "")} onClick={saveEmail}>{savingEmail ? "…" : "Guardar mail"}</button>
@@ -80,7 +86,7 @@ export default function PartyDrawer({ companyId, companyName, kind, partyId, onC
                       {d.docs.map((x) => (
                         <tr key={x.id} onClick={() => toggle(x.id)} style={{ cursor: "pointer" }}>
                           <td><input type="checkbox" checked={sel.has(x.id)} readOnly style={{ width: "auto" }} /></td>
-                          <td><div className="mono">{docLabel(x)}</div><div className="muted small">{dmy(x.date)}{x.description ? ` · ${x.description.slice(0, 60)}` : ""}</div></td>
+                          <td><div className="mono">{docLabel(x)}{isCli && <a className="pdf-link" href={`/api/factura/pdf?company=${companyId}&doc=${x.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Ver la factura en PDF">PDF</a>}</div><div className="muted small">{dmy(x.date)}{x.description ? ` · ${x.description.slice(0, 60)}` : ""}</div></td>
                           <td className="small">{dmy(x.dueDate)}</td>
                           <td className={`num mono ${x.pending < 0 ? "up" : ""}`}>{money(x.pending)}</td>
                           <td className="num small">{x.pending < 0 ? <span className="up">a favor</span> : x.late > 0 ? <span className={x.late > 60 ? "down" : ""}>{isCli ? `${x.late} días` : "vencida"}</span> : <span className="muted">{isCli ? "al día" : `en ${-x.late} días`}</span>}</td>
@@ -130,6 +136,7 @@ function Composer({ kind, isCli, companyId, companyName, party, docs, total, ema
   const [payAmount, setPayAmount] = useState<string>(String(Math.round(total * 100) / 100));
   const [to, setTo] = useState(email);
   const [cc, setCc] = useState("");
+  const [attachPdfs, setAttachPdfs] = useState(isCli);
   const greeting0 = party.alias || party.name;
   const [greeting, setGreeting] = useState(greeting0);
   const [subject, setSubject] = useState(defaultSubject(kind, isCli ? tone : null, companyName, greeting0));
@@ -148,6 +155,7 @@ function Composer({ kind, isCli, companyId, companyName, party, docs, total, ema
   const body = () => ({
     company: companyId, kind, party: party.id, docIds: docs.map((x) => x.id), to, cc, subject, greeting, intro,
     tone: isCli ? tone : null, payDate: kind === "orden_pago" ? payDate : null, payAmount: kind === "orden_pago" ? Number(payAmount) || null : null,
+    attachPdfs: isCli && attachPdfs,
   });
 
   // Vista previa (con una pausa para no pedirla en cada tecla)
@@ -167,7 +175,7 @@ function Composer({ kind, isCli, companyId, companyName, party, docs, total, ema
     const j = await r.json().catch(() => ({}));
     setBusy(false);
     if (!r.ok) return setMsg({ ok: false, text: j.error ?? "No se pudo enviar" });
-    setMsg({ ok: true, text: "¡Enviado!" });
+    setMsg({ ok: true, text: `¡Enviado!${j.adjuntos ? ` Con ${j.adjuntos} factura${j.adjuntos === 1 ? "" : "s"} en PDF.` : ""}${j.sinPdf?.length ? ` Sin PDF (no son electrónicas): ${j.sinPdf.join(", ")}.` : ""}` });
     setTimeout(onSent, 900);
   }
 
@@ -200,6 +208,11 @@ function Composer({ kind, isCli, companyId, companyName, party, docs, total, ema
         <label>Asunto</label><input value={subject} onChange={(e) => setSubject(e.target.value)} />
         <label>Saludo (Hola …)</label><input value={greeting} onChange={(e) => setGreeting(e.target.value)} />
         <label>Texto</label><textarea rows={5} value={intro} onChange={(e) => setIntro(e.target.value)} />
+        {isCli && (
+          <label className="check" style={{ marginTop: 12 }}>
+            <input type="checkbox" checked={attachPdfs} onChange={(e) => setAttachPdfs(e.target.checked)} /> Adjuntar las facturas en PDF (las trae de Colppy)
+          </label>
+        )}
       </div>
 
       <label>Vista previa</label>

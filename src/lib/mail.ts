@@ -8,7 +8,7 @@ export async function mailConfig(tenantId: string) {
   return db.mailConfig.findUnique({ where: { tenantId } });
 }
 
-export async function deliver(tenantId: string, m: { to: string[]; cc: string[]; subject: string; html: string; text: string }) {
+export async function deliver(tenantId: string, m: { to: string[]; cc: string[]; subject: string; html: string; text: string; attachments?: { filename: string; content: Buffer }[] }) {
   const cfg = await mailConfig(tenantId);
   if (!cfg?.smtpUser || !cfg.smtpPassEnc) throw new Error("Falta configurar la casilla de envío en Configuración → Correo");
   const transporter = nodemailer.createTransport({
@@ -17,7 +17,7 @@ export async function deliver(tenantId: string, m: { to: string[]; cc: string[];
   });
   const info = await transporter.sendMail({
     from: cfg.fromName ? `"${cfg.fromName}" <${cfg.smtpUser}>` : cfg.smtpUser,
-    replyTo: cfg.replyTo || undefined, to: m.to, cc: m.cc.length ? m.cc : undefined, subject: m.subject, text: m.text, html: m.html,
+    replyTo: cfg.replyTo || undefined, to: m.to, cc: m.cc.length ? m.cc : undefined, subject: m.subject, text: m.text, html: m.html, attachments: m.attachments,
   });
   return info.messageId as string;
 }

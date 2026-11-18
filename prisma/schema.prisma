@@ -137,6 +137,11 @@ model Party {
   email       String?
   phone       String?
   emailManual Boolean @default(false) @map("email_manual")
+  address     String?
+  city        String?
+  province    String?
+  ivaCondition String? @map("iva_condition")
+  contactAt   DateTime? @map("contact_at") /// última vez que se leyó la ficha en Colppy
 
   @@unique([companyId, kind, colppyId])
   @@index([companyId, kind])
@@ -204,4 +209,27 @@ model MailConfig {
   brandColor  String  @default("#131c4a") @map("brand_color")
 
   @@map("mail_configs")
+}
+
+/// Ítem de inventario de Colppy (producto o servicio) con su disponibilidad.
+model Item {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  colppyId  String   @map("colppy_id")
+  code      String
+  name      String
+  kind      String // P producto | S servicio
+  unit      String?
+  stock     Decimal  @db.Decimal(16, 3)
+  minimum   Decimal? @db.Decimal(16, 3)
+  cost      Decimal  @db.Decimal(16, 2)
+  lastPurchase Decimal @map("last_purchase") @db.Decimal(16, 2)
+  price     Decimal  @db.Decimal(16, 2)
+  iva       String?
+  category  String?
+  active    Boolean  @default(true)
+
+  @@unique([companyId, colppyId])
+  @@index([companyId])
+  @@map("items")
 }

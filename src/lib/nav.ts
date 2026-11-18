@@ -43,6 +43,7 @@ export const NAV: Section[] = [
   {
     key: "operaciones", label: "Operaciones", icon: "bolt",
     modules: [
+      { slug: "stock", label: "Stock", href: "/app/stock", desc: "Qué hay, cuánto vale y qué hay que reponer." },
       { slug: "reporte-socios", label: "Reporte a socios", desc: "Todos los viernes a las 17, el mail con cómo viene el negocio.", bullets: ["Cobrado, pagado y flujo de la semana", "Top deudores", "Comparación con la semana anterior"], from: "Infocampo" },
       { slug: "presupuesto", label: "Presupuesto", desc: "Objetivos por mes y real vs. presupuesto.", from: "Huerta" },
       { slug: "asistente", label: "Asistente CFO", desc: "Preguntale a tus números: “¿por qué bajó el resultado en julio?”", from: "Huerta" },

@@ -106,20 +106,60 @@ async function fillContacts(c: ColppyClient, idEmpresa: string, companyId: strin
   const docKind = kind === "cliente" ? "venta" : "compra";
   const withDebt = await db.doc.groupBy({ by: ["partyId"], where: { companyId, kind: docKind }, _sum: { pending: true } });
   const owing = withDebt.filter((x) => Math.abs(Number(x._sum.pending ?? 0)) > 1).map((x) => x.partyId);
-  const missing = await db.party.findMany({ where: { companyId, kind, email: null, emailManual: false, colppyId: { in: owing } }, take: 200 });
+  // Ficha completa (mail, teléfono, dirección, condición de IVA) de los que tienen saldo:
+  // las nuevas o las que no se leyeron en los últimos 30 días. Lo que el usuario corrigió a mano (mail) no se pisa.
+  const stale = new Date(Date.now() - 30 * 86_400_000);
+  const toRead = await db.party.findMany({ where: { companyId, kind, colppyId: { in: owing }, OR: [{ contactAt: null }, { contactAt: { lt: stale } }] }, take: 250 });
+  const IVA: Record<string, string> = { "1": "Responsable inscripto", "2": "Exento", "3": "Consumidor final", "4": "Monotributo" };
+  const str = (v: unknown) => { const t = String(v ?? "").trim(); return t && t !== "null" ? t : null; };
   let done = 0;
-  await pool(missing, 5, async (p) => {
+  await pool(toRead, 5, async (p) => {
     try {
       const r = (await c.call(kind === "cliente" ? "Cliente" : "Proveedor", kind === "cliente" ? "leer_cliente" : "leer_proveedor",
         kind === "cliente" ? { idEmpresa, idCliente: p.colppyId } : { idEmpresa, idProveedor: p.colppyId })) as any;
       const d = Array.isArray(r?.data) ? r.data[0] : r?.data;
-      const email = String(d?.Email ?? d?.email ?? "").trim() || null;
-      const phone = String(d?.Telefono ?? d?.telefono ?? "").trim() || null;
-      const cuit = String(d?.CUIT ?? "").trim() || null;
-      if (email || phone || cuit) await db.party.update({ where: { id: p.id }, data: { email, phone, ...(cuit ? { cuit } : {}) } });
+      if (d) {
+        const email = str(d.Email ?? d.email);
+        await db.party.update({ where: { id: p.id }, data: {
+          ...(p.emailManual ? {} : { email }),
+          phone: str(d.Telefono ?? d.telefono) ?? p.phone,
+          cuit: str(d.CUIT) ?? p.cuit,
+          address: str(d.DirPostal ?? d.DirFiscal),
+          city: str(d.DirPostalCiudad ?? d.DirFiscalCiudad),
+          province: str(d.DirPostalProvincia ?? d.DirFiscalProvincia),
+          ivaCondition: IVA[String(d.idCondicionIva ?? "")] ?? str(d.idCondicionIva),
+          contactAt: new Date(),
+        } });
+      }
     } catch { /* si Colppy no tiene la operación o falla, el mail se carga a mano */ }
-    await onStep(++done, missing.length);
+    await onStep(++done, toRead.length);
   });
+}
+
+/** Stock: ítems de inventario con su disponibilidad (si la empresa usa inventario en Colppy). */
+async function syncItems(c: ColppyClient, companyId: string) {
+  let rows: Row[] = [];
+  try { rows = await c.itemsInventario(); } catch { return 0; } // empresas sin inventario: no pasa nada
+  const existing = new Map((await db.item.findMany({ where: { companyId }, select: { id: true, colppyId: true } })).map((x) => [x.colppyId, x.id]));
+  const creates: Prisma.ItemCreateManyInput[] = [];
+  const updates: ReturnType<typeof db.item.update>[] = [];
+  for (const it of rows) {
+    const colppyId = String(it.idItem ?? it.id ?? "");
+    if (!colppyId) continue;
+    const data = {
+      code: String(it.codigo ?? ""), name: String(it.descripcion ?? it.comentarioFactura ?? colppyId).trim(),
+      kind: String(it.tipoItem ?? "P").toUpperCase() === "S" ? "S" : "P", unit: it.unidadMedida ? String(it.unidadMedida) : null,
+      stock: num(it.disponibilidad), minimum: it.minimo != null && it.minimo !== "" ? num(it.minimo) : null,
+      cost: num(it.costoCalculado), lastPurchase: num(it.ultimoPrecioCompra), price: num(it.precioVenta),
+      iva: it.iva != null ? String(it.iva) : null, category: it.descCtaInventario ? String(it.descCtaInventario) : null, active: !it.fechaBaja,
+    };
+    const id = existing.get(colppyId);
+    if (id) updates.push(db.item.update({ where: { id }, data }));
+    else creates.push({ companyId, colppyId, ...data });
+  }
+  for (const part of chunks(creates, 2000)) await db.item.createMany({ data: part, skipDuplicates: true });
+  await inChunks(updates);
+  return rows.length;
 }
 
 /** Avance dentro de una etapa cuando no se sabe el total: se acerca al final sin llegar nunca. */
@@ -136,7 +176,9 @@ export async function syncDocs(c: ColppyClient, idEmpresa: string, companyId: st
   const k = await upsertDocs(companyId, "compra", compras, from);
 
   const [c0, c1] = STAGES.contactos, mid = (c0 + c1) / 2;
-  await fillContacts(c, idEmpresa, companyId, "cliente", v.parties, (d, t) => progress(`Mails de clientes: ${d} de ${t}`, c0 + (mid - c0) * (d / Math.max(t, 1))));
-  await fillContacts(c, idEmpresa, companyId, "proveedor", k.parties, (d, t) => progress(`Mails de proveedores: ${d} de ${t}`, mid + (c1 - mid) * (d / Math.max(t, 1))));
-  return { ventas: v.count, compras: k.count };
+  await fillContacts(c, idEmpresa, companyId, "cliente", v.parties, (d, t) => progress(`Datos de clientes: ${d} de ${t}`, c0 + (mid - c0) * (d / Math.max(t, 1))));
+  await fillContacts(c, idEmpresa, companyId, "proveedor", k.parties, (d, t) => progress(`Datos de proveedores: ${d} de ${t}`, mid + (c1 - mid) * (d / Math.max(t, 1))));
+  await progress("Trayendo el stock…", c1 - 1);
+  const items = await syncItems(c, companyId);
+  return { ventas: v.count, compras: k.count, items };
 }
