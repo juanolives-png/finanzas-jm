@@ -8,6 +8,7 @@
 //   las patrimoniales marcadas "solo debe" (préstamos, aportes) entran solo con su debe
 import { db } from "./db";
 import type { Category } from "./categories";
+import type { Converter } from "./macro";
 
 export type MonthRow = {
   month: string; partial: boolean;
@@ -27,16 +28,19 @@ export type DashboardData = {
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-export async function dashboardData(companyId: string): Promise<DashboardData> {
+/** conv: convierte cada importe según su fecha (pesos nominales, pesos de hoy o dólares). */
+export async function dashboardData(companyId: string, conv?: Converter): Promise<DashboardData> {
   const now = new Date(Date.now() - 3 * 3_600_000); // hora argentina
   const today = ymd(now);
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
-  const rows = await db.$queryRaw<{ m: string; account: string; d: number; c: number }[]>`
-    SELECT to_char(date, 'YYYY-MM') AS m, account,
+  // Por día (no por mes) para poder convertir cada movimiento a la cotización de su día
+  const raw = await db.$queryRaw<{ day: string; account: string; d: number; c: number }[]>`
+    SELECT to_char(date, 'YYYY-MM-DD') AS day, account,
            COALESCE(SUM(CASE WHEN dc = 'D' THEN amount END), 0)::float8 AS d,
            COALESCE(SUM(CASE WHEN dc = 'C' THEN amount END), 0)::float8 AS c
     FROM ledger_entries WHERE company_id = ${companyId} AND date >= ${from}
     GROUP BY 1, 2`;
+  const rows = raw.map((r) => { const f = conv ? conv.factor(r.day) : 1; return { m: r.day.slice(0, 7), account: r.account, d: r.d * f, c: r.c * f }; });
   const accounts = await db.ledgerAccount.findMany({ where: { companyId } });
   const acc = new Map(accounts.map((a) => [a.code, a]));
 

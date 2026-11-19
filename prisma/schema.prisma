@@ -238,3 +238,23 @@ model Item {
   @@index([companyId])
   @@map("items")
 }
+
+/// Cotización diaria del dólar (ArgentinaDatos / DolarApi). casa: oficial (BNA) | mayorista (A3500) | bolsa (MEP).
+/// Es de todos los clientes: no cuelga de ninguna empresa.
+model FxRate {
+  casa String
+  date DateTime @db.Date
+  buy  Decimal? @db.Decimal(14, 4)
+  sell Decimal  @db.Decimal(14, 4)
+
+  @@id([casa, date])
+  @@map("fx_rates")
+}
+
+/// Inflación mensual (IPC del INDEC, vía ArgentinaDatos): variación % del mes.
+model CpiMonth {
+  month String  @id // YYYY-MM
+  pct   Decimal @db.Decimal(8, 3)
+
+  @@map("cpi_months")
+}

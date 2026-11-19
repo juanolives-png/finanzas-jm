@@ -12,17 +12,23 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineEl
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const mLabel = (ym: string) => `${MESES[+ym.slice(5, 7) - 1]} ${ym.slice(2, 4)}`;
-const fmt = (n: number) => "$ " + Math.round(n).toLocaleString("es-AR");
-const short = (n: number) => {
+// sym: "$" o "US$", según la moneda elegida arriba
+const fmt = (n: number, sym = "$") => `${sym} ` + Math.round(n).toLocaleString("es-AR");
+const short = (n: number, sym = "$") => {
   const a = Math.abs(n);
-  if (a >= 1e9) return `$ ${(n / 1e9).toFixed(1)} mil M`;
-  if (a >= 1e6) return `$ ${(n / 1e6).toFixed(1)} M`;
-  return fmt(n);
+  const d = (x: number) => x.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  if (a >= 1e9) return `${sym} ${d(n / 1e9)} mil M`;
+  if (a >= 1e6) return `${sym} ${d(n / 1e6)} M`;
+  if (a >= 1e4 && sym !== "$") return `${sym} ${d(n / 1e3)} k`;
+  return fmt(n, sym);
 };
 const pct = (a: number, b: number) => (b ? ((a - b) / Math.abs(b)) * 100 : 0);
 const gastosDe = (m: DashboardData["months"][number]) => m.costos + m.estructura + m.impuestos + m.financieros + m.sinClasificar;
 
-type Resp = { company: { id: string; name: string; lastSyncAt: string | null; status: string }; data: DashboardData };
+type Money = { view: View; casa: string; available: boolean; note: string; symbol: string; today: number };
+type Resp = { company: { id: string; name: string; lastSyncAt: string | null; status: string }; data: DashboardData; money?: Money };
+type View = "nominal" | "real" | "usd";
+const VIEW_KEY = "numo-money";
 type Run = { progress: string | null; percent?: number; ok: boolean | null; error: string | null; startedAt?: string } | null;
 
 export default function Dashboard({ companyId }: { companyId: string }) {
@@ -30,10 +36,17 @@ export default function Dashboard({ companyId }: { companyId: string }) {
   const [running, setRunning] = useState(false);
   const [run, setRun] = useState<Run>(null);
   const themeKey = useThemeKey();
+  // Moneda en la que se ven los números (se recuerda en este navegador)
+  const [view, setView] = useState<View>("nominal");
+  const [casa, setCasa] = useState("oficial");
+  useEffect(() => {
+    try { const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null"); if (v?.view) setView(v.view); if (v?.casa) setCasa(v.casa); } catch { /* sin almacenamiento */ }
+  }, []);
+  const pickMoney = (v: View, c = casa) => { setView(v); setCasa(c); try { localStorage.setItem(VIEW_KEY, JSON.stringify({ view: v, casa: c })); } catch { /* nada */ } };
   const [debt, setDebt] = useState<{ cli?: { total: number; overdue: number; avgLate: number }; prov?: { total: number; overdue: number; next7: number } }>({});
 
   const load = useCallback(async () => {
-    const r = await fetch(`/api/dashboard?company=${companyId}`, { cache: "no-store" });
+    const r = await fetch(`/api/dashboard?company=${companyId}&view=${view}&casa=${casa}`, { cache: "no-store" });
     if (r.ok) setResp(await r.json());
     // Resumen de deuda para las tiras de abajo (si todavía no hay facturas, no se muestran)
     const [c, p] = await Promise.all(["clientes", "proveedores"].map((k) => fetch(`/api/deuda?company=${companyId}&kind=${k}`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : null)).catch(() => null)));
@@ -41,7 +54,7 @@ export default function Dashboard({ companyId }: { companyId: string }) {
       cli: c?.parties?.length ? { total: c.totals.total, overdue: c.totals.overdue, avgLate: c.totals.avgLate } : undefined,
       prov: p?.parties?.length ? { total: p.totals.total, overdue: p.totals.overdue, next7: p.totals.byBucket[1] } : undefined,
     });
-  }, [companyId]);
+  }, [companyId, view, casa]);
 
   const poll = useCallback(async () => {
     const r = await fetch(`/api/sync?company=${companyId}`, { cache: "no-store" });
@@ -82,6 +95,10 @@ export default function Dashboard({ companyId }: { companyId: string }) {
   const prev = months[months.length - 3];
   const margen = cur.ingresos ? (cur.ebitda / cur.ingresos) * 100 : 0;
   const q = `?company=${companyId}`;
+  const money = resp.money;
+  const S = money?.symbol ?? "$";
+  const T = money?.today ?? 1; // saldos de hoy (deudas) convertidos a la cotización de hoy
+  const sh = (n: number) => short(n, S);
 
   return (
     <>
@@ -95,8 +112,12 @@ export default function Dashboard({ companyId }: { companyId: string }) {
             {data.futureEntries > 0 && ` · ${data.futureEntries} asientos con fecha futura`}
           </p>
         </div>
-        <button className="btn ghost" onClick={syncNow} disabled={running}>{running ? "Actualizando…" : "↻ Actualizar ahora"}</button>
+        <div className="head-actions">
+          <MoneySwitch view={view} casa={casa} onPick={pickMoney} />
+          <button className="btn ghost" onClick={syncNow} disabled={running}>{running ? "Actualizando…" : "↻ Actualizar ahora"}</button>
+        </div>
       </div>
+      {money && money.view !== "nominal" && <p className={`money-note ${money.available ? "" : "warn"}`}>{money.note}</p>}
 
       {running && <SyncProgress run={run} />}
       {syncError && <div className="error" style={{ marginBottom: 14 }}>No se pudo actualizar: {syncError}</div>}
@@ -121,10 +142,10 @@ export default function Dashboard({ companyId }: { companyId: string }) {
       ) : (
         <>
           <div className="grid kpis">
-            <Kpi label={`Ingresos · ${mLabel(cur.month)}`} value={cur.ingresos} prev={prev.ingresos} />
-            <Kpi label={`EBITDA · ${mLabel(cur.month)}`} value={cur.ebitda} prev={prev.ebitda} sub={`Margen ${margen.toFixed(1)}%`} />
-            <Kpi label={`Resultado · ${mLabel(cur.month)}`} value={cur.resultado} prev={prev.resultado} />
-            <Kpi label={`Caja neta · ${mLabel(cur.month)}`} value={cur.cajaNeta} prev={prev.cajaNeta} sub="Lo que entró menos lo que salió" />
+            <Kpi sym={S} label={`Ingresos · ${mLabel(cur.month)}`} value={cur.ingresos} prev={prev.ingresos} />
+            <Kpi sym={S} label={`EBITDA · ${mLabel(cur.month)}`} value={cur.ebitda} prev={prev.ebitda} sub={`Margen ${margen.toFixed(1)}%`} />
+            <Kpi sym={S} label={`Resultado · ${mLabel(cur.month)}`} value={cur.resultado} prev={prev.resultado} />
+            <Kpi sym={S} label={`Caja neta · ${mLabel(cur.month)}`} value={cur.cajaNeta} prev={prev.cajaNeta} sub="Lo que entró menos lo que salió" />
           </div>
 
           <div className="grid two">
@@ -144,10 +165,10 @@ export default function Dashboard({ companyId }: { companyId: string }) {
                 }}
                 options={{
                   responsive: true,
-                  plugins: { legend: { labels: { color: cssVar("--text2"), boxWidth: 10, boxHeight: 10 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(Number(c.raw))}` } } },
+                  plugins: { legend: { labels: { color: cssVar("--text2"), boxWidth: 10, boxHeight: 10 } }, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(Number(c.raw), S)}` } } },
                   scales: {
                     x: { ticks: { color: cssVar("--text3"), callback: (_v, i) => mLabel(months[i].month) }, grid: { display: false } },
-                    y: { ticks: { color: cssVar("--text3"), callback: (v) => short(Number(v)) }, grid: { color: cssVar("--chart-grid") } },
+                    y: { ticks: { color: cssVar("--text3"), callback: (v) => short(Number(v), S) }, grid: { color: cssVar("--chart-grid") } },
                   },
                 }}
               />
@@ -158,7 +179,7 @@ export default function Dashboard({ companyId }: { companyId: string }) {
               {data.topGastos.map((g) => (
                 <div className="row" key={g.code}>
                   <span>{g.name}<span className="muted small"> · {CATEGORIES[g.category as Category]?.label ?? ""}</span></span>
-                  <span className="mono">{short(g.amount)}</span>
+                  <span className="mono">{sh(g.amount)}</span>
                 </div>
               ))}
             </div>
@@ -168,13 +189,13 @@ export default function Dashboard({ companyId }: { companyId: string }) {
             <div className="debt-strip">
               {debt.cli && (
                 <Link href={`/app/clientes${q}`} className="card">
-                  <span><div className="kpi-label">Te deben</div><div className="kpi-value">{short(debt.cli.total)}</div><div className="kpi-sub down">{short(debt.cli.overdue)} vencido · atraso prom. {debt.cli.avgLate} días</div></span>
+                  <span><div className="kpi-label">Te deben</div><div className="kpi-value">{sh(debt.cli.total * T)}</div><div className="kpi-sub down">{sh(debt.cli.overdue * T)} vencido · atraso prom. {debt.cli.avgLate} días</div></span>
                   <span className="up small">Ver y reclamar →</span>
                 </Link>
               )}
               {debt.prov && (
                 <Link href={`/app/proveedores${q}`} className="card">
-                  <span><div className="kpi-label">Debés a proveedores</div><div className="kpi-value">{short(debt.prov.total)}</div><div className="kpi-sub muted">{short(debt.prov.overdue)} vencido · {short(debt.prov.next7)} vence en 7 días</div></span>
+                  <span><div className="kpi-label">Debés a proveedores</div><div className="kpi-value">{sh(debt.prov.total * T)}</div><div className="kpi-sub muted">{sh(debt.prov.overdue * T)} vencido · {sh(debt.prov.next7 * T)} vence en 7 días</div></span>
                   <span className="up small">Ver y pagar →</span>
                 </Link>
               )}
@@ -182,8 +203,8 @@ export default function Dashboard({ companyId }: { companyId: string }) {
                 <div className="card" title="Lo que te deben los clientes menos lo que debés a proveedores (sin contar la caja)">
                   <span>
                     <div className="kpi-label">Capital de trabajo operativo</div>
-                    <div className={`kpi-value ${debt.cli.total - debt.prov.total < 0 ? "down" : ""}`}>{short(debt.cli.total - debt.prov.total)}</div>
-                    <div className="kpi-sub muted">Te deben {short(debt.cli.total)} − debés {short(debt.prov.total)}</div>
+                    <div className={`kpi-value ${debt.cli.total - debt.prov.total < 0 ? "down" : ""}`}>{sh((debt.cli.total - debt.prov.total) * T)}</div>
+                    <div className="kpi-sub muted">Te deben {sh(debt.cli.total * T)} − debés {sh(debt.prov.total * T)}</div>
                   </span>
                 </div>
               )}
@@ -193,19 +214,19 @@ export default function Dashboard({ companyId }: { companyId: string }) {
           <div className="card" style={{ marginTop: 14 }}>
             <h3>Cómo se llega al resultado · {mLabel(cur.month)}</h3>
             <div className="waterfall">
-              <Step label="Ingresos" v={cur.ingresos} />
-              <Step label="Costos operativos" v={-cur.costos} />
-              <Step label="Contribución" v={cur.contribucion} total />
-              <Step label="Estructura" v={-cur.estructura} />
-              <Step label="EBITDA" v={cur.ebitda} total />
-              <Step label="Impuestos" v={-cur.impuestos} />
-              <Step label="Financieros" v={-cur.financieros} />
-              {cur.sinClasificar !== 0 && <Step label="Sin clasificar" v={-cur.sinClasificar} />}
-              <Step label="Resultado" v={cur.resultado} total />
+              <Step sym={S} label="Ingresos" v={cur.ingresos} />
+              <Step sym={S} label="Costos operativos" v={-cur.costos} />
+              <Step sym={S} label="Contribución" v={cur.contribucion} total />
+              <Step sym={S} label="Estructura" v={-cur.estructura} />
+              <Step sym={S} label="EBITDA" v={cur.ebitda} total />
+              <Step sym={S} label="Impuestos" v={-cur.impuestos} />
+              <Step sym={S} label="Financieros" v={-cur.financieros} />
+              {cur.sinClasificar !== 0 && <Step sym={S} label="Sin clasificar" v={-cur.sinClasificar} />}
+              <Step sym={S} label="Resultado" v={cur.resultado} total />
             </div>
             {(cur.inversiones !== 0 || cur.circuitoIva !== 0) && (
               <p className="muted small" style={{ marginTop: 12 }}>
-                Aparte del resultado:{cur.inversiones !== 0 && ` inversiones ${short(cur.inversiones)}`}{cur.inversiones !== 0 && cur.circuitoIva !== 0 && " ·"}{cur.circuitoIva !== 0 && ` circuito financiero (IVA) neto ${short(cur.circuitoIva)}`}.
+                Aparte del resultado:{cur.inversiones !== 0 && ` inversiones ${sh(cur.inversiones)}`}{cur.inversiones !== 0 && cur.circuitoIva !== 0 && " ·"}{cur.circuitoIva !== 0 && ` circuito financiero (IVA) neto ${sh(cur.circuitoIva)}`}.
               </p>
             )}
           </div>
@@ -215,24 +236,24 @@ export default function Dashboard({ companyId }: { companyId: string }) {
   );
 }
 
-function Kpi({ label, value, prev, invert, sub }: { label: string; value: number; prev: number; invert?: boolean; sub?: string }) {
+function Kpi({ label, value, prev, invert, sub, sym }: { label: string; value: number; prev: number; invert?: boolean; sub?: string; sym: string }) {
   const d = pct(value, prev);
   const good = invert ? d <= 0 : d >= 0;
   return (
     <div className="card">
       <div className="kpi-label">{label}</div>
-      <div className={`kpi-value ${value < 0 ? "down" : ""}`}>{short(value)}</div>
+      <div className={`kpi-value ${value < 0 ? "down" : ""}`}>{short(value, sym)}</div>
       {prev !== 0 && <div className={`kpi-sub ${good ? "up" : "down"}`}>{d >= 0 ? "▲" : "▼"} {Math.abs(d).toFixed(1)}% vs. mes anterior</div>}
       {sub && <div className="kpi-sub muted">{sub}</div>}
     </div>
   );
 }
 
-function Step({ label, v, total }: { label: string; v: number; total?: boolean }) {
+function Step({ label, v, total, sym }: { label: string; v: number; total?: boolean; sym: string }) {
   return (
     <div className={`wf-row ${total ? "total" : ""}`}>
       <span>{label}</span>
-      <span className={`mono ${v < 0 ? "down" : total ? "" : "up"}`}>{short(v)}</span>
+      <span className={`mono ${v < 0 ? "down" : total ? "" : "up"}`}>{short(v, sym)}</span>
     </div>
   );
 }
@@ -260,6 +281,25 @@ function SyncProgress({ run }: { run: Run }) {
           return <span key={k} className={st}>{st === "done" ? "✓" : st === "now" ? "●" : "○"} {l}</span>;
         })}
       </div>
+    </div>
+  );
+}
+
+/** Selector de moneda: pesos como en la contabilidad, pesos de hoy (ajustados por inflación) o dólares del día de cada movimiento. */
+function MoneySwitch({ view, casa, onPick }: { view: View; casa: string; onPick: (v: View, c?: string) => void }) {
+  const opts: [View, string, string][] = [["nominal", "$", "Pesos, tal cual la contabilidad"], ["real", "$ de hoy", "Pesos ajustados por inflación (INDEC)"], ["usd", "US$", "Dólares al tipo de cambio de cada día"]];
+  return (
+    <div className="money">
+      <div className="seg" role="group" aria-label="Moneda">
+        {opts.map(([v, l, t]) => <button key={v} className={view === v ? "on" : ""} title={t} onClick={() => onPick(v)}>{l}</button>)}
+      </div>
+      {view === "usd" && (
+        <select value={casa} onChange={(e) => onPick("usd", e.target.value)} aria-label="Tipo de cambio">
+          <option value="oficial">Oficial BNA</option>
+          <option value="bolsa">MEP</option>
+          <option value="mayorista">Mayorista</option>
+        </select>
+      )}
     </div>
   );
 }

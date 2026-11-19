@@ -9,6 +9,7 @@
 import { Fragment, useState } from "react";
 import { Wordmark } from "@/components/Logo";
 import type { ObModule } from "@/lib/onboarding";
+import type { DemoPreview } from "@/lib/demoPreview";
 
 type Row = { c: string[]; tone?: "b" | "g" | "w"; detail?: string[][] };
 type Info = {
@@ -20,7 +21,8 @@ type Info = {
   actions: string[];
 };
 
-// Números de ejemplo: una distribuidora de almacén y bebidas, octubre (en millones de pesos)
+// Textos de cada sección. Los números de ejemplo de acá se reemplazan por los de la empresa demo (demoPreview.ts);
+// quedan como respaldo para las secciones que la demo no calcula.
 export const OB_INFO: Record<string, Info> = {
   pyl: {
     title: "Estado de resultados", lead: "¿Ganás plata? Del total vendido a lo que te queda, mes a mes.",
@@ -175,9 +177,23 @@ type Props = {
   onRemove: (id: string) => void; onAdd: (id: string) => void; setCompany: (s: string) => void;
   Ico: (p: { k: string }) => JSX.Element; Tile: (p: { m: ObModule; onOpen: () => void }) => JSX.Element;
   appRef: React.RefObject<HTMLDivElement>;
+  preview: DemoPreview;
 };
 
-export default function ObPreview({ order, others, company, active, setActive, onRemove, onAdd, setCompany, Ico, Tile, appRef }: Props) {
+/** Textos fijos de cada sección + números de la empresa demo (los mismos que se ven adentro). */
+function infoFor(id: string, p: DemoPreview): Info | null {
+  const base = OB_INFO[id];
+  if (!base) return null;
+  const s = p.sections[id];
+  if (id === "ia" && base.table) {
+    const ia = p.extra.ia as string[];
+    return { ...base, table: { ...base.table, rows: [{ c: ia }, ...base.table.rows.slice(1)] } };
+  }
+  if (!s) return base;
+  return { ...base, kpis: s.kpis, table: s.rows && s.cols ? { cols: s.cols, rows: s.rows } : base.table, tip: s.tip ?? base.tip };
+}
+
+export default function ObPreview({ order, others, company, active, setActive, onRemove, onAdd, setCompany, Ico, Tile, appRef, preview }: Props) {
   const [adding, setAdding] = useState(false);
   const steps = [...order.map((m) => m.id), "conectar"];
   const idx = Math.max(0, steps.indexOf(active));
@@ -220,7 +236,7 @@ export default function ObPreview({ order, others, company, active, setActive, o
         {active === "dash" ? (
           <>
             <h2 className="ob-fly ob-hi">Buen día, <input className="ob-name" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="tu empresa" aria-label="Nombre de tu empresa" maxLength={60} /></h2>
-            <div className="ob-sub ob-fly">Así se va a ver tu empresa, por ahora con números de ejemplo. Tocá una tarjeta para abrir su sección.</div>
+            <div className="ob-sub ob-fly">Así se va a ver tu empresa. Por ahora con los números de {preview.company}, nuestra empresa de ejemplo: la vas a tener adentro para seguir recorriéndola. Tocá una tarjeta para abrir su sección.</div>
             <div className="ob-tiles">{order.map((m) => <Tile key={m.id} m={m} onOpen={() => m.id !== "dash" && setActive(m.id)} />)}</div>
           </>
         ) : active === "conectar" ? (
@@ -231,8 +247,8 @@ export default function ObPreview({ order, others, company, active, setActive, o
             <div className="ob-sub">Esto lo pediste vos y todavía no es una sección de Numo.</div>
             <div className="ob-card"><p>Lo anotamos con tus palabras. Cuando crees tu cuenta, lo vemos juntos y te decimos cómo lo resolvemos: como una sección nueva o dentro de una que ya existe.</p></div>
           </div>
-        ) : cur && OB_INFO[cur.id] ? (
-          <Page key={cur.id} info={OB_INFO[cur.id]} />
+        ) : cur && infoFor(cur.id, preview) ? (
+          <Page key={cur.id} info={infoFor(cur.id, preview)!} />
         ) : null}
       </main>
     </div>
@@ -291,7 +307,7 @@ function Connect() {
       <div className="ob-sub">Tres pasos y estos números pasan a ser los tuyos.</div>
       <div className="ob-card">
         <ol className="ob-steps">
-          <li><b>Creás tu cuenta.</b> Entrás con tu Numo ya armado como lo dejaste, y una empresa de ejemplo para seguir mirando.</li>
+          <li><b>Creás tu cuenta.</b> Entrás con tu Numo ya armado como lo dejaste, y con {"Distribuidora del Sol"} para seguir mirando.</li>
           <li><b>Conectás Colppy</b> con tu usuario. Numo solo lee: nunca modifica nada en tu Colppy.</li>
           <li><b>En unos minutos</b> trae tu último año y medio de contabilidad y se actualiza solo todos los días.</li>
         </ol>

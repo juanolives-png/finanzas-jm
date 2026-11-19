@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { errorResponse, getCompany, HttpError, requireSession } from "@/lib/auth";
 import { isSyncing, startSync } from "@/lib/sync";
+import { refreshMacro } from "@/lib/macro";
 
 export async function GET(req: Request) {
   try {
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   try {
     const cron = req.headers.get("x-cron-secret");
     if (cron && process.env.CRON_SECRET && cron === process.env.CRON_SECRET) {
+      await refreshMacro().catch((e) => console.error("[cron] dólar e inflación", e)); // cotizaciones del día e IPC
       const companies = await db.company.findMany({ where: { colppyEmpresaId: { not: null } }, select: { id: true } });
       // De a una, para no saturar Colppy
       const started: string[] = [];
