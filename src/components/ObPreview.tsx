@@ -34,7 +34,7 @@ function infoFor(id: string, p: DemoPreview): Info | null {
     return { ...base, table: { ...base.table, rows: [{ c: ia }, ...base.table.rows.slice(1)] } };
   }
   if (!s) return base;
-  return { ...base, kpis: s.kpis, table: s.rows && s.cols ? { cols: s.cols, rows: s.rows } : base.table, tip: s.tip ?? base.tip };
+  return { ...base, kpis: s.kpis, table: s.rows && s.cols ? (s.rows.length ? { cols: s.cols, rows: s.rows } : undefined) : base.table, tip: s.tip ?? base.tip };
 }
 
 export default function ObPreview({ order, others, company, active, setActive, onRemove, onAdd, setCompany, Ico, Tile, appRef, preview, rubro }: Props) {
@@ -104,7 +104,7 @@ export default function ObPreview({ order, others, company, active, setActive, o
             <div className="ob-tiles">{order.map((m) => <Tile key={m.id} m={m} onOpen={() => m.id !== "dash" && nav(m.id)} />)}</div>
           </>
         ) : active === "conectar" ? (
-          <Connect />
+          <Connect company={preview.company} />
         ) : cur?.custom ? (
           <div className="ob-page">
             <h2>{cur.label}</h2>
@@ -164,14 +164,14 @@ function Page({ info, cash, focus }: { info: Info; cash: DemoPreview["cash"]; fo
   );
 }
 
-function Connect() {
+function Connect({ company }: { company: string }) {
   return (
     <div className="ob-page">
       <h2>Conectar sistemas</h2>
       <div className="ob-sub">Tres pasos y estos números pasan a ser los tuyos.</div>
       <div className="ob-card">
         <ol className="ob-steps">
-          <li><b>Creás tu cuenta.</b> Entrás con tu Numo ya armado como lo dejaste, y con {"Distribuidora del Sol"} para seguir mirando.</li>
+          <li><b>Creás tu cuenta.</b> Entrás con tu Numo ya armado como lo dejaste, y con {company} para seguir mirando.</li>
           <li><b>Conectás Colppy</b> con tu usuario. Numo solo lee: nunca modifica nada en tu Colppy.</li>
           <li><b>En unos minutos</b> trae tu último año y medio de contabilidad y se actualiza solo todos los días.</li>
         </ol>

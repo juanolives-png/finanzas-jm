@@ -2,14 +2,15 @@
 // El recorrido de /empezar muestra exactamente lo que después se ve adentro en "Distribuidora del Sol":
 // mismos clientes, mismas cifras, mismas facturas. Se calcula en el servidor (una vez por día) y viaja
 // como datos simples al componente del inicio.
-import { ACCOUNTS, buildDemo, CLIENTS, SUPPLIERS } from "./demoData";
+import { buildDemo } from "./demoData";
+import { profileFor, type RubroKey } from "./demoRubros";
 import { customerAnalytics } from "./clientes";
 
 export type PvRow = { c: string[]; tone?: "b" | "g" | "w"; detail?: string[][] };
 export type PvKpi = [string, string, string?, ("g" | "b" | "w")?];
 export type PvSection = { kpis: PvKpi[]; rows?: PvRow[]; cols?: string[]; tip?: string; title?: string };
 export type DemoPreview = {
-  company: string; monthName: string; prevMonthName: string;
+  company: string; rubro: RubroKey; rubroLabel: string; monthName: string; prevMonthName: string;
   tiles: Record<string, PvKpi[]>; extra: Record<string, unknown>;
   sections: Record<string, PvSection>;
   /** Narración del armado: lo que Numo "va leyendo" antes de mostrar el sistema */
@@ -30,20 +31,25 @@ const dm = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.g
 const DAY = 86_400_000;
 const label = (d: { letter?: string | null; number: string }) => `FC-${d.letter ?? ""} ${d.number}`;
 
-let cache: { key: string; value: DemoPreview } | null = null;
+const cache = new Map<string, DemoPreview>();
 
-export function demoPreview(): DemoPreview {
-  const key = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
-  if (cache?.key === key) return cache.value;
-  const value = compute();
-  cache = { key, value };
+/** Vista previa de la empresa de ejemplo de un rubro (se calcula una vez por día y por rubro). */
+export function demoPreview(rubro?: string | null): DemoPreview {
+  const r = profileFor(rubro).key;
+  const key = `${r}|${new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10)}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const value = compute(r);
+  if (cache.size > 20) cache.clear();
+  cache.set(key, value);
   return value;
 }
 
-function compute(): DemoPreview {
-  const { today, accounts, ledger, docs, items } = buildDemo("preview");
+function compute(rubro: RubroKey): DemoPreview {
+  const { today, accounts, ledger, docs, items, profile } = buildDemo("preview", rubro);
+  const CLIENTS = profile.clients, SUPPLIERS = profile.suppliers;
   const cat = new Map(accounts.map((a) => [a.code, a.category]));
-  const accName = new Map(ACCOUNTS.map((a) => [a.code, a.name]));
+  const accName = new Map(accounts.map((a) => [a.code, a.name]));
   const t = today.getTime();
   const last = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
   const prev = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 2, 1));
@@ -72,7 +78,7 @@ function compute(): DemoPreview {
 
   // Costo de mercadería por proveedor (lo que se compró el mes)
   const cmvBySup = new Map<string, number>();
-  for (const d of docs) if (d.kind === "compra" && ym(d.date as Date) === L && d.description === "Costo de mercadería vendida") cmvBySup.set(d.partyName, (cmvBySup.get(d.partyName) ?? 0) + Number(d.total) / 1.21);
+  for (const d of docs) if (d.kind === "compra" && ym(d.date as Date) === L && d.description === accName.get("511100")) cmvBySup.set(d.partyName, (cmvBySup.get(d.partyName) ?? 0) + Number(d.total) / 1.21);
   const sups = [...cmvBySup].sort((a, b) => b[1] - a[1]);
   const supTotal = sups.reduce((s, [, v]) => s + v, 0) || 1;
   const cmvDetail = [...sups.slice(0, 2).map(([n, v]) => [n, signed(-now.cmv * (v / supTotal))]), [`Otros ${Math.max(0, sups.length - 2)} proveedores`, signed(-now.cmv * (sups.slice(2).reduce((s, [, v]) => s + v, 0) / supTotal))]];
@@ -116,11 +122,11 @@ function compute(): DemoPreview {
   const prods = items.filter((i) => i.kind === "P").map((i) => ({ name: i.name, stock: Number(i.stock), min: Number(i.minimum ?? 0), cost: Number(i.cost), price: Number(i.price) }));
   const stockVal = prods.reduce((s, i) => s + Math.max(0, i.stock) * i.cost, 0);
   const bajo = prods.filter((i) => i.stock > 0 && i.stock < i.min), sin = prods.filter((i) => i.stock <= 0);
-  const margenStock = prods.reduce((s, i) => s + (i.price - i.cost) / i.price, 0) / prods.length;
+  const margenStock = prods.length ? prods.reduce((s, i) => s + (i.price - i.cost) / i.price, 0) / prods.length : 0;
 
   // ── Ciclo de la plata (de la configuración de clientes y proveedores) ──
   const wsum = CLIENTS.reduce((s, c) => s + c.w, 0);
-  const dso = Math.round(CLIENTS.reduce((s, c) => s + c.w * (30 + c.delay), 0) / wsum);
+  const dso = Math.round(CLIENTS.reduce((s, c) => s + c.w * (c.cash ? 0 : 30 + c.delay), 0) / wsum);
   const dpo = Math.round(SUPPLIERS.reduce((s, x) => s + (x.share ?? 0.02) * (x.term + x.delay + 2), 0) / SUPPLIERS.reduce((s, x) => s + (x.share ?? 0.02), 0));
 
   // ── IVA del mes en curso ──
@@ -164,7 +170,7 @@ function compute(): DemoPreview {
       cols: ["Línea", monthName[0].toUpperCase() + monthName.slice(1), "% ventas"],
       rows: [
         { c: ["Ventas", M(now.ingresos), "100%"], detail: accRows(["411100", "411200"]).map(([n, v]) => [n, v.replace("−", "")]) },
-        { c: ["Costo de mercadería", signed(-now.cmv), pct(now.cmv / now.ingresos)], detail: cmvDetail },
+        { c: [profile.cmvLabel, signed(-now.cmv), pct(now.cmv / now.ingresos)], detail: cmvDetail },
         { c: ["Gastos operativos", signed(-now.operativos), pct(now.operativos / now.ingresos)], detail: accRows(["521100", "511200", "511300", "521300", "521200"]) },
         { c: ["Estructura", signed(-now.estructura), pct(now.estructura / now.ingresos)], detail: accRows(["531100", "531300", "531200", "531400"]) },
         { c: ["EBITDA", M(now.ebitda), pct(now.ebitda / now.ingresos, 1)], tone: "g" },
@@ -188,10 +194,13 @@ function compute(): DemoPreview {
       cols: ["Proveedor", "Saldo", "Vence"],
       rows: proRows.map((r) => ({ c: [r.name, M(r.total), whenTxt(r)], tone: whenTxt(r) === "vencida" ? "b" : undefined, detail: r.docs.slice(0, 3).map((d) => [`${label(d)} · vence ${dm(d.due)}`, M(d.pending)]) })),
     },
-    stock: {
+    stock: prods.length ? {
       kpis: [["Stock valorizado", $M(stockVal), "a costo"], ["Bajo mínimo", `${bajo.length} productos`, "", "w"], ["Sin stock", `${sin.length} productos`, "", "b"], ["Margen promedio", pct(margenStock), "", "g"]],
       cols: ["Producto", "Stock", "Mínimo"],
       rows: [...sin, ...bajo].slice(0, 5).map((i) => ({ c: [i.name, String(i.stock), String(i.min)], tone: i.stock <= 0 ? "b" : "w" })),
+    } : {
+      kpis: [["Productos en stock", "0", "la empresa de ejemplo de tu rubro no maneja inventario", "w"]], cols: ["Producto", "Stock", "Mínimo"], rows: [],
+      tip: "Si en Colppy usás inventario, acá ves qué hay, cuánto vale y qué reponer. Si no lo usás, esta sección no aparece.",
     },
     cap: {
       kpis: [["Capital de trabajo", $M(teDeben - debes)], ["Te deben", $M(teDeben)], ["Debés", `− ${$M(debes)}`]],
@@ -206,7 +215,7 @@ function compute(): DemoPreview {
     ciclo: {
       kpis: [["Cobrás a", `${ak.realDays ?? dso} días`, `pactado ${ak.agreedDays ?? 30}`, "w"], ["Pagás a", `${dpo} días`], ["Ciclo", `${(ak.realDays ?? dso) - dpo} días`, (ak.realDays ?? dso) > dpo ? "lo financiás vos" : "te financian", (ak.realDays ?? dso) > dpo ? "w" : "g"]],
       cols: ["Cliente", "Pactado", "Real"],
-      rows: [...CLIENTS].sort((a, b) => a.delay - b.delay).filter((_, i, a) => i === 0 || i === Math.floor(a.length / 2) || i === a.length - 1)
+      rows: [...CLIENTS].filter((c) => !c.cash).sort((a, b) => a.delay - b.delay).filter((_, i, a) => i === 0 || i === Math.floor(a.length / 2) || i === a.length - 1)
         .map((c) => ({ c: [c.name, "30 días", `${30 + c.delay} días`], tone: c.delay > 60 ? "b" : c.delay > 10 ? "w" : "g" })),
     },
     iva: {
@@ -281,7 +290,7 @@ function compute(): DemoPreview {
   if (jump) insights.push({ module: "pyl", big: `+${pct(jump.now / jump.before - 1)}`, title: `${accName.get(jump.c)} subió en ${monthName}`, text: `Pasó de ${$M(jump.before)} a ${$M(jump.now)}. Abrilo y ves cada factura que lo explica.`, row: jump.c.startsWith("53") ? 3 : 2 });
   insights.push({ module: "caja", big: `${(caja / gastoMes).toLocaleString("es-AR", { maximumFractionDigits: 1 })} meses`, title: "Tu caja de hoy cubre", text: lowWeek > 0 ? `El punto más bajo de los próximos 3 meses es la semana ${lowWeek + 1}: ${$M(low)}.` : `Con lo que entra y sale, en 3 meses llegás a ${$M(weeks[12])}.` });
   if (realCobro > 30) insights.push({ module: "ciclo", big: `${realCobro} días`, title: "Tus clientes te pagan más tarde de lo pactado", text: `Pactás 30 días pero cobrás a ${realCobro} y les pagás a tus proveedores a ${dpo}: financiás ${realCobro - dpo} días con tu plata.` });
-  if (sin.length) insights.push({ module: "stock", big: `${sin.length}`, title: "Productos sin stock", text: `${sin.map((i) => i.name).join(" y ")}: los estás dejando de vender.`, row: 0 });
+  if (prods.length && sin.length) insights.push({ module: "stock", big: `${sin.length}`, title: "Productos sin stock", text: `${sin.map((i) => i.name).join(" y ")}: los estás dejando de vender.`, row: 0 });
 
   const factCount = docs.filter((d) => d.kind === "venta").length + docs.filter((d) => d.kind === "compra").length;
   const story = [
@@ -296,7 +305,7 @@ function compute(): DemoPreview {
   const worstCli = worst[0];
   return {
     story, insights, cash: { weeks, min: minCash, low, lowWeek },
-    company: "Distribuidora del Sol", monthName, prevMonthName,
+    company: profile.company, rubro: profile.key, rubroLabel: profile.label, monthName, prevMonthName,
     tiles: {
       dash: [["Ventas del mes", $Mr(now.ingresos), arrow(up(now.ingresos, before.ingresos)), "g"], ["Ganancia", $Mr(now.resultado), `${pct(now.resultado / now.ingresos)} margen`, "g"], ["Caja hoy", $Mr(caja), `${(caja / gastoMes).toLocaleString("es-AR", { maximumFractionDigits: 1 })} meses`, "w"], ["Te deben", $Mr(teDeben), `${pct(vencido / teDeben)} vencido`, "b"]],
     },
@@ -305,7 +314,7 @@ function compute(): DemoPreview {
       worst: worst.slice(0, 2).map((w) => [w.name, `${w.maxLate} días`]),
       aging: [[-9999, 0], [0, 30], [30, 60], [60, 90], [90, 99999]].map(([lo, hi]) => cli.filter((d) => late(d) > lo && late(d) <= hi).reduce((s, d) => s + d.pending, 0)),
       prov4: [0, 1, 2, 3].map((w) => pro.filter((d) => { const n = -late(d); return n >= w * 7 && n < (w + 1) * 7; }).reduce((s, d) => s + d.pending, 0)),
-      fac: [$Mr(facTot), `${facMes.length} facturas`], iva: [$M(Math.abs(ivaD - ivaC)), "vence el 18"], stock: [$Mr(stockVal), `${bajo.length + sin.length} productos para reponer`],
+      fac: [$Mr(facTot), `${facMes.length} facturas`], iva: [$M(Math.abs(ivaD - ivaC)), "vence el 18"], stock: prods.length ? [$Mr(stockVal), `${bajo.length + sin.length} productos para reponer`] : ["—", "sin inventario en el ejemplo"],
       ret: [String(ak.active), `${ak.lost90} perdidos y ${ak.new90} nuevos en 90 días`],
       ppto: pct(now.ingresos / (objV)), cap: [$M(teDeben - debes), M(teDeben), M(debes)], ciclo: [`${dso - dpo} días`, `cobrás a ${dso} · pagás a ${dpo}`],
       eq: [$Mr(equilibrio), `${monthName} lo superó ${pct(now.ingresos / equilibrio - 1)}`],

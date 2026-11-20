@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { DEMO_PROFILES, RUBRO_KEYS } from "@/lib/demoRubros";
 
 type Company = { id: string; name: string; cuit: string | null; source: string; status: string; lastSyncAt: string | null; lastError: string | null; colppyUser: string | null };
 type Empresa = { id: string; nombre: string; cuit: string | null };
@@ -22,9 +23,10 @@ export default function Conexiones() {
   useEffect(() => { load(); }, []);
   const [demoBusy, setDemoBusy] = useState(false);
   const demo = companies.find((c) => c.source === "demo");
-  async function demoAction(method: "POST" | "DELETE") {
+  const [rubro, setRubro] = useState("distribucion");
+  async function demoAction(method: "POST" | "DELETE", r0?: string) {
     setDemoBusy(true);
-    const r = await fetch("/api/demo", { method });
+    const r = await fetch("/api/demo", { method, headers: { "Content-Type": "application/json" }, body: method === "POST" ? JSON.stringify({ rubro: r0 ?? rubro }) : undefined });
     const j = await r.json().catch(() => ({}));
     setDemoBusy(false);
     if (method === "POST" && j.companyId) { window.location.href = `/app?company=${j.companyId}`; return; }
@@ -48,7 +50,12 @@ export default function Conexiones() {
               <span>{c.name} <span className="muted small">· {c.source === "demo" ? "Empresa de ejemplo, números inventados" : `Colppy · ${c.colppyUser}`}</span></span>
               <span>
                 {c.source === "demo"
-                  ? <><span className="badge">Demo</span>{" "}<button className="btn ghost sm" disabled={demoBusy} onClick={() => demoAction("DELETE")}>Quitar</button>{" "}</>
+                  ? <><span className="badge">Demo</span>{" "}
+                      <select className="inline-sel" disabled={demoBusy} value="" onChange={(e) => e.target.value && demoAction("POST", e.target.value)} title="Cambiar el rubro de la empresa de ejemplo">
+                        <option value="">{demoBusy ? "Armando…" : "Cambiar rubro…"}</option>
+                        {RUBRO_KEYS.map((k) => <option key={k} value={k}>{DEMO_PROFILES[k].label} · {DEMO_PROFILES[k].company}</option>)}
+                      </select>{" "}
+                      <button className="btn ghost sm" disabled={demoBusy} onClick={() => demoAction("DELETE")}>Quitar</button>{" "}</>
                   : <><span className={`badge ${c.status === "error" ? "red" : "green"}`}>{c.status === "error" ? "Con error" : "Conectada"}</span>{" "}</>}
                 <a href={`/app?company=${c.id}`} className="up small">Ver tablero →</a>
               </span>
@@ -59,8 +66,13 @@ export default function Conexiones() {
 
       {!demo && (
         <div className="card" style={{ marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div><strong>Empresa demo</strong><p className="muted small" style={{ marginTop: 4 }}>Una distribuidora inventada con un año de números, para mostrar Numo sin exponer datos reales.</p></div>
-          <button className="btn ghost" disabled={demoBusy} onClick={() => demoAction("POST")}>{demoBusy ? "Armándola…" : "Sumar empresa demo"}</button>
+          <div><strong>Empresa demo</strong><p className="muted small" style={{ marginTop: 4 }}>Una empresa inventada con un año de números, para mostrar Numo sin exponer datos reales. Elegí la más parecida a quien se la vas a mostrar.</p></div>
+          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <select className="inline-sel" value={rubro} onChange={(e) => setRubro(e.target.value)}>
+              {RUBRO_KEYS.map((k) => <option key={k} value={k}>{DEMO_PROFILES[k].label} · {DEMO_PROFILES[k].company}</option>)}
+            </select>
+            <button className="btn ghost" disabled={demoBusy} onClick={() => demoAction("POST")}>{demoBusy ? "Armándola…" : "Sumar empresa demo"}</button>
+          </span>
         </div>
       )}
 

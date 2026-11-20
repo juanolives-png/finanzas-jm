@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { OB_MODULES } from "@/lib/onboarding";
 import { OB_INFO } from "@/lib/obInfo";
+import { DEMO_PROFILES, RUBRO_KEYS, isRubro, rubroFromText } from "@/lib/demoRubros";
 
 const MODEL = process.env.ONBOARDING_MODEL ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5";
 const Body = z.object({
@@ -39,12 +40,12 @@ Cómo responder:
 - "why": para cada id propuesto, un motivo de 3 a 7 palabras pensado para su negocio (ej. "para saber quién te debe").
 - "custom": cosas que pidió y que NO están en el catálogo, en 2 a 5 palabras cada una (ej. "liquidación de sueldos"). No las prometas: se anotan como pedido especial.
 - "question": si todavía no sabés el rubro, o el tamaño (cuántas personas o cuánto factura), hacé UNA pregunta corta para conocerlo. Nunca repitas una pregunta que ya hiciste en la charla: si no te la contestó, no insistas y dejala vacía. Si ya sabés rubro y tamaño, dejala vacía.
-- "profile": lo que sepas del negocio: {"rubro": "...", "tamano": "..."} (vacío si no sabés).
+- "profile": lo que sepas del negocio: {"rubro": "...", "tamano": "...", "demo": "..."} (vacío si no sabés). En "demo" poné la empresa de ejemplo que más se parece a su negocio, una de: ${RUBRO_KEYS.map((k) => `${k} (${DEMO_PROFILES[k].label})`).join(", ")}. Por ejemplo una ferretería o un local → comercio; un estudio o una agencia → servicios.
 - Nunca inventes funciones que no estén en el catálogo, ni precios, ni plazos.
 - Si escribe algo que no tiene que ver con su empresa, respondé amable en una oración y volvé a preguntarle qué quiere ver de su negocio.
 
 Respondé SOLO con un JSON válido, sin texto antes ni después:
-{"reply": "...", "modules": ["dash", ...], "why": {"id": "motivo"}, "custom": ["..."], "question": "...", "profile": {"rubro": "...", "tamano": "..."}}`;
+{"reply": "...", "modules": ["dash", ...], "why": {"id": "motivo"}, "custom": ["..."], "question": "...", "profile": {"rubro": "...", "tamano": "...", "demo": "..."}}`;
 
 /** Diagnóstico: abrir /api/onboarding/chat en el navegador dice si la clave está, qué modelo usa y si Anthropic responde. */
 export async function GET(req: Request) {
@@ -97,7 +98,10 @@ export async function POST(req: Request) {
     return Response.json({
       reply: String(o.reply ?? "").slice(0, 400), modules, why, custom,
       question: String(o.question ?? "").slice(0, 200),
-      profile: { rubro: prof.rubro ? String(prof.rubro).slice(0, 60) : null, tamano: prof.tamano ? String(prof.tamano).slice(0, 60) : null },
+      profile: {
+        rubro: prof.rubro ? String(prof.rubro).slice(0, 60) : null, tamano: prof.tamano ? String(prof.tamano).slice(0, 60) : null,
+        demo: isRubro(prof.demo) ? prof.demo : prof.rubro ? rubroFromText(String(prof.rubro)) : null,
+      },
     });
   } catch (e) {
     console.error("[onboarding/chat]", e);

@@ -30,7 +30,9 @@ export default function AuthForm({ mode }: { mode: "login" | "registro" }) {
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true); setError(null);
-    const body = Object.fromEntries(new FormData(e.currentTarget));
+    const body: Record<string, unknown> = Object.fromEntries(new FormData(e.currentTarget));
+    // El rubro de la empresa de ejemplo que vio en el inicio: entra con esa misma
+    if (mode === "registro") { try { const o = JSON.parse(localStorage.getItem(OB_STORAGE) ?? "null"); if (o?.demo) body.demo = o.demo; } catch { /* nada */ } }
     const res = await fetch(`/api/auth/${mode}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) { setError(j.error ?? "Algo salió mal"); setBusy(false); return; }

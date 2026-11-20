@@ -11,9 +11,10 @@ import { Mark, Wordmark } from "@/components/Logo";
 import { detectModules, OB_DEFAULT, OB_MODULES, OB_STORAGE, type ObModule } from "@/lib/onboarding";
 import ObPreview, { CashChart, Num } from "@/components/ObPreview";
 import type { DemoPreview } from "@/lib/demoPreview";
+import { detectRubro } from "@/lib/demoRubros";
 
 type Msg = { id: number; who: "user" | "bot"; text: string; typing?: string; mods?: string[]; ask?: string; actions?: boolean; thinking?: boolean };
-type Profile = { rubro?: string | null; tamano?: string | null };
+type Profile = { rubro?: string | null; tamano?: string | null; demo?: string | null };
 
 const IC: Record<string, string> = {
   dash: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", pyl: "M4 20V10m6 10V4m6 16v-7m4 7H2",
@@ -29,7 +30,9 @@ const Ico = ({ k }: { k: string }) => (
 const SUGGESTIONS = ["Quiero un dashboard financiero", "Quiero tener un P&L", "Llevar las cobranzas y la facturación", "Saber qué clientes perdí", "Controlar a mis proveedores", "Saber cuánta caja voy a tener", "Ver mi capital de trabajo", "Controlar el stock", "Mandar un reporte a mis socios"];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; preview: DemoPreview }) {
+export default function Onboarding({ loggedIn, preview: initial }: { loggedIn: boolean; preview: DemoPreview }) {
+  // Empresa de ejemplo: arranca con la distribuidora y cambia cuando se sabe el rubro de quien escribe
+  const [preview, setPreview] = useState<DemoPreview>(initial);
   const [q, setQ] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [busy, setBusy] = useState(false);
@@ -93,7 +96,8 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
     const next = Array.from(new Set(["dash", ...(ai.modules ?? []), ...customIds]));
     setChosen(next);
     setWhy((w) => ({ ...w, ...(ai!.why ?? {}) }));
-    if (ai.profile) setProfile((p) => ({ rubro: ai!.profile?.rubro || p.rubro, tamano: ai!.profile?.tamano || p.tamano }));
+    if (ai.profile) setProfile((p) => ({ rubro: ai!.profile?.rubro || p.rubro, tamano: ai!.profile?.tamano || p.tamano, demo: ai!.profile?.demo || p.demo }));
+    switchRubro(ai.profile?.demo); // el recorrido se arma con la empresa de ejemplo de su rubro
 
     await typeInto(botId, "text", ai.reply);
     upd(botId, { mods: next });
@@ -105,6 +109,7 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
 
   /** Respaldo sin IA: detecta por palabras clave (lo de siempre). */
   async function keywordReply(text: string, botId: number) {
+    switchRubro(detectRubro(text));
     const isFirst = chosen.length === 0;
     let found = detectModules(text);
     let cat = catalog;
@@ -131,8 +136,14 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
     setBusy(false);
   }
 
+  async function switchRubro(rubro?: string | null) {
+    if (!rubro || rubro === preview.rubro) return;
+    try { const r = await fetch(`/api/demo/preview?rubro=${rubro}`); if (r.ok) setPreview(await r.json()); } catch { /* sigue con la que estaba */ }
+  }
+
   /** Borra la charla y vuelve a la pregunta inicial (tocando el logo o "Empezar de nuevo"). */
   function reset() {
+    setPreview(initial);
     setMsgs([]); setChosen([]); setCatalog(OB_MODULES); setWishes([]); setWhy({}); setProfile({});
     setQ(""); setBusy(false); setBuilding(false); setDone(false); setActive("dash"); setCompany("");
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -181,7 +192,7 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
     setSaving(true);
     const custom = catalog.filter((m) => m.custom && chosen.includes(m.id)).map((m) => `Sección pedida: ${m.label}`);
     const perfil = [profile.rubro && `Rubro: ${profile.rubro}`, profile.tamano && `Tamaño: ${profile.tamano}`].filter(Boolean) as string[];
-    const payload = { modules: chosen.filter((x) => !x.startsWith("x")), wishes: [...wishes, ...custom, ...perfil], company: company.trim() || undefined };
+    const payload = { modules: chosen.filter((x) => !x.startsWith("x")), wishes: [...wishes, ...custom, ...perfil], company: company.trim() || undefined, demo: preview.rubro };
     if (loggedIn) {
       await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).catch(() => null);
       window.location.href = "/app";
@@ -272,6 +283,7 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
           <div className="ob-narr">
             <div className="ob-orb"><Mark size={52} /></div>
             <h3>Armando tu Numo…</h3>
+            <p className="ob-narr-sub">Con {preview.company}, nuestra empresa de ejemplo de {preview.rubroLabel.toLowerCase()}</p>
             <ul>
               {preview.story.map((x, i) => (
                 <li key={x.t} className={i < step ? "done" : i === step ? "now" : ""}>

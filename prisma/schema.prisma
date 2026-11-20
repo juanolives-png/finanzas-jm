@@ -49,6 +49,7 @@ model Company {
   name            String
   cuit            String?
   source          String    @default("colppy") /// colppy | demo (empresa de ejemplo con números inventados)
+  demoRubro       String?   @map("demo_rubro") /// si es demo: distribucion | comercio | servicios | coworking
   colppyEmpresaId String?   @map("colppy_empresa_id")
   colppyUser      String?   @map("colppy_user")
   colppyPassEnc   String?   @map("colppy_pass_enc")

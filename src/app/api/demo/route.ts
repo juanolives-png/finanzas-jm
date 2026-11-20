@@ -2,13 +2,17 @@
 import { db } from "@/lib/db";
 import { errorResponse, requireSession } from "@/lib/auth";
 import { ensureDemoCompany, seedDemo } from "@/lib/demo";
+import { isRubro } from "@/lib/demoRubros";
 
-export async function POST() {
+// POST { rubro? }: crea la demo, la rearma al día o la cambia de rubro
+export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const body = (await req.json().catch(() => ({}))) as { rubro?: string };
+    const rubro = isRubro(body.rubro) ? body.rubro : null;
     const existing = await db.company.findFirst({ where: { tenantId: s.tenantId, source: "demo" } });
-    if (existing) { await seedDemo(existing.id); return Response.json({ companyId: existing.id }); }
-    const c = await ensureDemoCompany(s.tenantId);
+    if (existing && (!rubro || rubro === (existing.demoRubro ?? "distribucion"))) { await seedDemo(existing.id); return Response.json({ companyId: existing.id }); }
+    const c = await ensureDemoCompany(s.tenantId, rubro);
     return Response.json({ companyId: c.id });
   } catch (e) { return errorResponse(e); }
 }
