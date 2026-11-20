@@ -46,6 +46,24 @@ Cómo responder:
 Respondé SOLO con un JSON válido, sin texto antes ni después:
 {"reply": "...", "modules": ["dash", ...], "why": {"id": "motivo"}, "custom": ["..."], "question": "...", "profile": {"rubro": "...", "tamano": "..."}}`;
 
+/** Diagnóstico: abrir /api/onboarding/chat en el navegador dice si la clave está, qué modelo usa y si Anthropic responde. */
+export async function GET(req: Request) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  const out: Record<string, unknown> = { clave: key ? `cargada (${key.slice(0, 7)}…, ${key.length} caracteres)` : "FALTA: cargá ANTHROPIC_API_KEY en las variables", modelo: MODEL };
+  if (key) {
+    const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
+    if (!allowed(ip)) return Response.json({ ...out, prueba: "límite de pruebas alcanzado, esperá una hora" });
+    try {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: MODEL, max_tokens: 5, messages: [{ role: "user", content: "Decí hola" }] }), signal: AbortSignal.timeout(20_000),
+      });
+      out.prueba = r.ok ? "OK: Claude responde" : `ERROR ${r.status}: ${(await r.text()).slice(0, 300)}`;
+    } catch (e) { out.prueba = `ERROR de conexión: ${e instanceof Error ? e.message : String(e)}`; }
+  }
+  return Response.json(out);
+}
+
 export async function POST(req: Request) {
   try {
     const key = process.env.ANTHROPIC_API_KEY;
