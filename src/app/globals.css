@@ -395,3 +395,41 @@ select.warn { border-color: var(--yellow); color: var(--yellow); }
 .card > .tabs { margin: 12px 12px 0; }
 .table .num.warn, .kpi-sub.warn { color: var(--yellow); }
 .table .num.down { color: var(--red); } .table .num.up { color: var(--green); }
+/* Inicio: narración del armado */
+.ob-narr { width: min(520px, 100%); background: var(--o-n2); border: 1px solid var(--o-line); border-radius: 22px; padding: 28px 28px 24px; color: var(--o-ink); box-shadow: 0 0 0 8px rgba(79,179,131,.05), 0 30px 90px rgba(0,0,0,.5); animation: ob-pop .35s both; }
+.ob-narr .ob-orb { width: 52px; margin: 0 0 14px; animation: ob-spin 3s linear infinite; }
+.ob-narr h3 { font-size: 21px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 16px; }
+.ob-narr ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.ob-narr li { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; font-size: 14.5px; color: var(--o-ink3); transition: color .3s; }
+.ob-narr li.now, .ob-narr li.done { color: var(--o-ink); }
+.ob-narr li .ic { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--o-line); display: grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--o-night); }
+.ob-narr li.now .ic { border-color: var(--o-lg); border-top-color: transparent; animation: ob-spin .8s linear infinite; }
+.ob-narr li.done .ic { background: var(--o-lg); border-color: var(--o-lg); animation: ob-pop .25s both; }
+.ob-narr li b { color: #8FE0B5; font-variant-numeric: tabular-nums; font-size: 13.5px; white-space: nowrap; animation: ob-pop .3s both; }
+.ob-narr-bar { height: 4px; border-radius: 4px; background: var(--o-line); margin-top: 20px; overflow: hidden; }
+.ob-narr-bar i { display: block; height: 100%; background: linear-gradient(90deg, #4FB383, #D9A63E); transition: width .45s ease; }
+/* Inicio: hallazgos */
+.ob-found { background: #15261F; border-radius: 16px; padding: 14px; margin-bottom: 14px; color: #E5EEE9; }
+.ob-found-h { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; color: #BFD8CB; margin-bottom: 10px; }
+.ob-dot { width: 9px; height: 9px; border-radius: 50%; background: #4FB383; box-shadow: 0 0 0 0 rgba(79,179,131,.6); animation: ob-ping 1.6s infinite; }
+.ob-found-g { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ob-ins { text-align: left; background: #1C3329; border: 1px solid #2F4A3E; border-radius: 12px; padding: 12px 13px; color: inherit; font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 4px; opacity: 0; animation: ob-rise .5s both; transition: border-color .2s, transform .2s, background .2s; }
+.ob-ins:hover { border-color: #4FB383; background: #20392E; transform: translateY(-2px); }
+.ob-ins .big { font-size: 22px; font-weight: 800; letter-spacing: -.03em; color: #F3D07A; font-variant-numeric: tabular-nums; }
+.ob-ins .t { font-size: 13.5px; font-weight: 700; color: #fff; line-height: 1.3; }
+.ob-ins .x { font-size: 12.5px; color: #A9C3B6; line-height: 1.45; }
+.ob-ins .go { font-size: 12px; color: #8FE0B5; font-weight: 700; margin-top: auto; padding-top: 4px; }
+.ob-tbl tr.pulse td { animation: ob-flash 1.4s ease 2; }
+.ob-lowdot { animation: ob-ping-dot 1.6s infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes ob-rise { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes ob-ping { 0% { box-shadow: 0 0 0 0 rgba(79,179,131,.6); } 100% { box-shadow: 0 0 0 10px rgba(79,179,131,0); } }
+@keyframes ob-flash { 0%, 100% { background: #EAF4EE; } 50% { background: #F8E7B5; } }
+@keyframes ob-ping-dot { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (max-width: 760px) { .ob-found-g { grid-template-columns: 1fr; } .ob-narr { padding: 22px 18px; } .ob-narr li { font-size: 13.5px; } }
+.ob-mod-l { display: flex; flex-direction: column; text-align: left; line-height: 1.25; }
+.ob-mod-l small { font-size: 11.5px; color: var(--o-ink3); font-weight: 400; }
+.ob-mod.off .ob-mod-l small { display: none; }
+.ob-think { display: flex; gap: 5px; padding: 8px 0; }
+.ob-think i { width: 7px; height: 7px; border-radius: 50%; background: var(--o-lg); animation: ob-bounce 1s infinite ease-in-out; }
+.ob-think i:nth-child(2) { animation-delay: .15s; } .ob-think i:nth-child(3) { animation-delay: .3s; }
+@keyframes ob-bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .4; } 40% { transform: translateY(-5px); opacity: 1; } }

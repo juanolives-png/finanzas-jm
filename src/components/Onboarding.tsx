@@ -9,10 +9,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Mark, Wordmark } from "@/components/Logo";
 import { detectModules, OB_DEFAULT, OB_MODULES, OB_STORAGE, type ObModule } from "@/lib/onboarding";
-import ObPreview from "@/components/ObPreview";
+import ObPreview, { CashChart, Num } from "@/components/ObPreview";
 import type { DemoPreview } from "@/lib/demoPreview";
 
-type Msg = { id: number; who: "user" | "bot"; text: string; typing?: string; mods?: string[]; ask?: string; actions?: boolean };
+type Msg = { id: number; who: "user" | "bot"; text: string; typing?: string; mods?: string[]; ask?: string; actions?: boolean; thinking?: boolean };
+type Profile = { rubro?: string | null; tamano?: string | null };
 
 const IC: Record<string, string> = {
   dash: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z", pyl: "M4 20V10m6 10V4m6 16v-7m4 7H2",
@@ -39,6 +40,10 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
   const [active, setActive] = useState("dash");
+  const [phase, setPhase] = useState<"narr" | "app">("narr");
+  const [why, setWhy] = useState<Record<string, string>>({});
+  const [profile, setProfile] = useState<Profile>({});
+  const [step, setStep] = useState(0);
   const [company, setCompany] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -61,12 +66,49 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
     setWishes((w) => [...w, text]);
     const userId = ++idRef.current;
     setMsgs((m) => [...m.map((x) => ({ ...x, actions: false })), { id: userId, who: "user", text }]);
+    const botId = ++idRef.current;
+    setMsgs((m) => [...m, { id: botId, who: "bot", text: "", thinking: true }]);
 
+    // La charla hasta acá, para que la IA tenga contexto
+    const history = [...msgs.filter((m) => m.text).map((m) => ({ role: m.who === "user" ? "user" : "assistant", text: m.who === "bot" ? [m.text, m.ask].filter(Boolean).join(" ") : m.text })), { role: "user", text }];
+    let ai: { fallback?: boolean; reply?: string; modules?: string[]; why?: Record<string, string>; custom?: string[]; question?: string; profile?: Profile } | null = null;
+    try {
+      const r = await fetch("/api/onboarding/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: history.slice(-12), chosen: chosen.filter((x) => !x.startsWith("x")) }) });
+      ai = r.ok ? await r.json() : null;
+    } catch { ai = null; }
+    upd(botId, { thinking: false });
+    if (!ai || ai.fallback || !ai.reply) { await keywordReply(text, botId); return; }
+
+    // Lo que pidió y no existe: tarjeta de "pedido especial"
+    let cat = catalog;
+    const customIds = chosen.filter((x) => x.startsWith("x"));
+    for (const label of ai.custom ?? []) {
+      const nice = label.charAt(0).toUpperCase() + label.slice(1);
+      const found = cat.find((m) => m.label.toLowerCase() === nice.toLowerCase());
+      if (found) { if (!customIds.includes(found.id)) customIds.push(found.id); continue; }
+      const m: ObModule = { id: "x" + ++idRef.current, label: nice, kw: [], custom: true };
+      cat = [...cat, m]; customIds.push(m.id);
+    }
+    setCatalog(cat);
+    const next = Array.from(new Set(["dash", ...(ai.modules ?? []), ...customIds]));
+    setChosen(next);
+    setWhy((w) => ({ ...w, ...(ai!.why ?? {}) }));
+    if (ai.profile) setProfile((p) => ({ rubro: ai!.profile?.rubro || p.rubro, tamano: ai!.profile?.tamano || p.tamano }));
+
+    await typeInto(botId, "text", ai.reply);
+    upd(botId, { mods: next });
+    await sleep(250 + next.length * 80);
+    await typeInto(botId, "ask", ai.question || "¿Lo armo así, o querés sumar algo más?");
+    upd(botId, { actions: true });
+    setBusy(false);
+  }
+
+  /** Respaldo sin IA: detecta por palabras clave (lo de siempre). */
+  async function keywordReply(text: string, botId: number) {
     const isFirst = chosen.length === 0;
     let found = detectModules(text);
     let cat = catalog;
     let custom: ObModule | null = null;
-    // Si no reconoce nada (y no es el primer mensaje), igual lo anota: arma una tarjeta con lo que pidió
     if (!found.length && !isFirst) {
       const label = text.replace(/^((quiero|me gustaria|me gustaría|tambien|también|agrega|agregá|agregar|sumale|sumá|ver|tener|saber|una|un|el|la|los|las|mi|mis|tarjeta|de)\s+)+/i, "").replace(/[.!?]+$/, "").slice(0, 42);
       custom = { id: "x" + idRef.current, label: label.charAt(0).toUpperCase() + label.slice(1), kw: [], custom: true };
@@ -75,10 +117,7 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
     const next = Array.from(new Set([...chosen, ...(found.length ? found : isFirst ? OB_DEFAULT : []), "dash"]));
     const added = found.filter((x) => !chosen.includes(x));
     setChosen(next);
-
-    const botId = ++idRef.current;
-    setMsgs((m) => [...m, { id: botId, who: "bot", text: "" }]);
-    await sleep(450);
+    await sleep(300);
     const line = custom ? `Todavía no tengo una sección de “${custom.label.toLowerCase()}”, pero la anoto y te armo una tarjeta para eso. Así quedaría tu Numo:`
       : !isFirst ? (added.length ? "Listo, lo sumo. Así quedaría tu Numo:" : "Eso ya lo tenés. Así quedaría tu Numo:")
       : found.length ? "¡Perfecto! Te propongo armar tu Numo con estas secciones. Tocá cualquiera para sacarla:"
@@ -95,9 +134,15 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
   const toggle = (id: string) => { if (id === "dash") return; setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id])); };
 
   // ── El armado: cada pieza arranca en el centro, chiquita y girada, y vuela a su lugar ──
-  function build() {
-    setActive("dash"); setDone(false);
+  // 1) Numo "lee" la contabilidad y lo va contando (con los números reales de la demo)
+  // 2) explota: cada pieza vuela a su lugar, los números suben y aparecen los hallazgos
+  async function build() {
+    setActive("dash"); setDone(false); setStep(0); setPhase("narr");
     setBuilding(true);
+    const quick = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    for (let i = 1; i <= preview.story.length; i++) { await sleep(quick ? 60 : i === 1 ? 650 : 560); setStep(i); }
+    await sleep(quick ? 60 : 550);
+    setPhase("app");
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const app = appRef.current;
       if (!app) return;
@@ -128,7 +173,8 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
   async function finish() {
     setSaving(true);
     const custom = catalog.filter((m) => m.custom && chosen.includes(m.id)).map((m) => `Sección pedida: ${m.label}`);
-    const payload = { modules: chosen.filter((x) => !x.startsWith("x")), wishes: [...wishes, ...custom], company: company.trim() || undefined };
+    const perfil = [profile.rubro && `Rubro: ${profile.rubro}`, profile.tamano && `Tamaño: ${profile.tamano}`].filter(Boolean) as string[];
+    const payload = { modules: chosen.filter((x) => !x.startsWith("x")), wishes: [...wishes, ...custom, ...perfil], company: company.trim() || undefined };
     if (loggedIn) {
       await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).catch(() => null);
       window.location.href = "/app";
@@ -166,12 +212,12 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
               <div key={m.id} className="ob-msg bot">
                 <div className="ob-av"><Mark size={30} /></div>
                 <div>
-                  <p>{m.text}{m.typing === "text" && <span className="ob-caret" />}</p>
+                  {m.thinking ? <p className="ob-think"><i /><i /><i /></p> : <p>{m.text}{m.typing === "text" && <span className="ob-caret" />}</p>}
                   {m.mods && (
                     <div className="ob-mods">
                       {catalog.filter((x) => m.mods!.includes(x.id)).map((x, i) => (
                         <button key={x.id} className={`ob-mod ${chosen.includes(x.id) ? "" : "off"}`} style={{ animationDelay: `${i * 80}ms` }} onClick={() => toggle(x.id)}>
-                          <Ico k={x.custom ? "x" : x.id} />{x.label}{x.id !== "dash" && <span className="ob-x">✕</span>}
+                          <Ico k={x.custom ? "x" : x.id} /><span className="ob-mod-l">{x.label}{why[x.id] && <small>{why[x.id]}</small>}{x.custom && <small>pedido especial: lo anotamos</small>}</span>{x.id !== "dash" && <span className="ob-x">✕</span>}
                         </button>
                       ))}
                     </div>
@@ -211,14 +257,30 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
         </main>
       </div>
 
-      {building && (
+      {building && phase === "narr" && (
+        <div className="ob-build">
+          <div className="ob-narr">
+            <div className="ob-orb"><Mark size={52} /></div>
+            <h3>Armando tu Numo…</h3>
+            <ul>
+              {preview.story.map((x, i) => (
+                <li key={x.t} className={i < step ? "done" : i === step ? "now" : ""}>
+                  <span className="ic">{i < step ? "✓" : ""}</span><span className="tx">{x.t}</span><b>{i < step ? x.n : ""}</b>
+                </li>
+              ))}
+            </ul>
+            <div className="ob-narr-bar"><i style={{ width: `${(step / preview.story.length) * 100}%` }} /></div>
+          </div>
+        </div>
+      )}
+      {building && phase === "app" && (
         <div className="ob-build">
           <ObPreview
             order={order} others={catalog.filter((m) => !m.custom && !chosen.includes(m.id))} company={company} setCompany={setCompany}
             active={active} setActive={setActive}
             onRemove={(id) => { setChosen((c) => c.filter((x) => x !== id)); if (active === id) setActive("dash"); }}
             onAdd={(id) => setChosen((c) => (c.includes(id) ? c : [...c, id]))}
-            Ico={Ico} Tile={(p) => <Tile {...p} pv={preview} />} appRef={appRef} preview={preview}
+            Ico={Ico} Tile={(p) => <Tile {...p} pv={preview} />} appRef={appRef} preview={preview} rubro={profile.rubro ?? null}
           />
         </div>
       )}
@@ -234,14 +296,14 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
 
 function Tile({ m, onOpen, pv }: { m: ObModule; onOpen: () => void; pv: DemoPreview }) {
   const T = ({ l, v, c, cl }: { l: string; v: string; c?: string; cl?: string }) => (
-    <div onClick={onOpen} className="ob-tile ob-fly ob-click"><div className="l">{l}</div><div className="v">{v}</div>{c && <span className={`c ${cl}`}>{c}</span>}</div>
+    <div onClick={onOpen} className="ob-tile ob-fly ob-click"><div className="l">{l}</div><div className="v"><Num v={v} /></div>{c && <span className={`c ${cl}`}>{c}</span>}</div>
   );
   const x = pv.extra as Record<string, any>;
   const box = (cls: string, body: React.ReactNode) => <div onClick={onOpen} className={`ob-tile ob-fly ob-click ${cls}`}>{body}</div>;
   switch (m.id) {
     case "dash": return <>{pv.tiles.dash.map(([l, v, c, cl]) => <T key={l} l={l} v={v} c={c} cl={cl} />)}</>;
     case "pyl": return box("w2", <><div className="l">Estado de resultados · {pv.monthName}</div>{(x.pylMini as string[][]).map(([a, b]) => <div key={a} className="ob-rowx"><span>{a}</span><b>{b}</b></div>)}</>);
-    case "caja": return box("w2", <><div className="l">Caja proyectada · 13 semanas</div><svg viewBox="0 0 300 90" style={{ width: "100%", height: 96, marginTop: 6 }}><line x1="0" y1="62" x2="300" y2="62" stroke="#B8412C" strokeDasharray="5 4" /><path d="M0,40 C40,55 60,20 100,28 S160,60 190,48 S240,15 270,40 S290,30 300,30" fill="none" stroke="#1F6B45" strokeWidth="3.5" strokeLinecap="round" /></svg></>);
+    case "caja": return box("w2", <><div className="l">Caja proyectada · 13 semanas</div><CashChart cash={pv.cash} /></>);
     case "cli": {
       const ag = x.aging as number[]; const tot = ag.reduce((s, v) => s + v, 0) || 1; const cols = ["#2F7D4F", "#EE9F86", "#E0704F", "#C84A30", "#9E2D1D"];
       return box("w2", <><div className="l">Clientes · antigüedad de deuda</div><div className="ob-minibar">{ag.map((v, i) => <i key={i} style={{ flex: Math.max(v / tot, 0.01), background: cols[i] }} />)}</div>{(x.worst as string[][]).map(([n, d]) => <div key={n} className="ob-rowx" style={{ marginTop: 4 }}><span>{n}</span><b style={{ color: "#B8412C" }}>{d}</b></div>)}</>);

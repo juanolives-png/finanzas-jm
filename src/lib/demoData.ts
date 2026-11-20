@@ -139,7 +139,6 @@ export function buildDemo(companyId: string) {
   for (const [d, part] of [[8, 0.4], [18, 0.35], [32, 0.25]] as const) { const date = addDays(first, d); line(date, "111201", "D", OPEN_DEUD * part, "COB", null, null, null); line(date, "113100", "C", OPEN_DEUD * part, "COB", null, null, null); }
   for (const [d, part] of [[10, 0.5], [26, 0.5]] as const) { const date = addDays(first, d); line(date, "211100", "D", OPEN_PROV * part, "OP", null, null, null); line(date, "111201", "C", OPEN_PROV * part, "OP", null, null, null); }
 
-  const wSum = CLIENTS.reduce((s, c) => s + c.w, 0);
   let nroV = 12480, nroC = 0;
   for (let i = 0; i <= 12; i++) {
     const y = first.getUTCFullYear(), mo = first.getUTCMonth() + i;
@@ -153,10 +152,13 @@ export function buildDemo(companyId: string) {
     const ok = (d: Date) => d.getTime() <= today.getTime();
 
     // ── Ventas y cobranzas ──
+    // Las ventas del mes se reparten entre los clientes que compran ese mes (así entran y salen clientes sin mover el total)
+    const buysThisMonth = (c: (typeof CLIENTS)[number]) => !((c.from !== undefined && i < c.from) || (c.until !== undefined && i > c.until) || (c.every && i % c.every));
+    const activeW = CLIENTS.filter(buysThisMonth).reduce((x, c) => x + c.w, 0);
     CLIENTS.forEach((c, ci) => {
       const pid = `demo-c${ci + 1}`;
-      if ((c.from !== undefined && i < c.from) || (c.until !== undefined && i > c.until) || (c.every && i % c.every)) return;
-      const share = (S * c.w) / wSum;
+      if (!buysThisMonth(c)) return;
+      const share = (S * c.w) / activeW;
       const n = c.w >= 8 ? 3 : c.w >= 4 ? 2 : 1;
       for (let k = 0; k < n; k++) {
         const neto = r2((share / n) * between(0.8, 1.2));

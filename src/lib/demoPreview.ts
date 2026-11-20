@@ -12,6 +12,12 @@ export type DemoPreview = {
   company: string; monthName: string; prevMonthName: string;
   tiles: Record<string, PvKpi[]>; extra: Record<string, unknown>;
   sections: Record<string, PvSection>;
+  /** Narración del armado: lo que Numo "va leyendo" antes de mostrar el sistema */
+  story: { t: string; n: string }[];
+  /** Caja proyectada semana a semana (13 semanas) y el mínimo recomendado */
+  cash: { weeks: number[]; min: number; low: number; lowWeek: number };
+  /** Hallazgos: lo que Numo encontró, con la sección y la fila a la que llevan */
+  insights: { module: string; big: string; title: string; text: string; row?: number }[];
 };
 
 const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -98,7 +104,7 @@ function compute(): DemoPreview {
   const cliRows = [topCli, ...worst.filter((w) => w !== topCli)].slice(0, 4);
   const lateTxt = (n: number) => (n > 1 ? `${n} días` : n === 1 ? "1 día" : "al día");
   const tone = (n: number): PvRow["tone"] => (n > 90 ? "b" : n > 30 ? "w" : undefined);
-  const docRows = (r: (typeof clients)[number], max = 3) => r.docs.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, max).map((d) => [`${label(d)} · vence ${dm(d.due)}`, M(d.pending)]);
+  const docRows = (r: (typeof clients)[number], max = 6) => r.docs.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, max).map((d) => [`${label(d)} · vence ${dm(d.due)}`, M(d.pending)]);
 
   const providers = byParty(pro);
   const in7 = pro.filter((d) => late(d) <= 0 && late(d) >= -7).reduce((s, d) => s + d.pending, 0);
@@ -243,8 +249,53 @@ function compute(): DemoPreview {
     },
   };
 
+  // ── Caja proyectada: saldo de hoy + cobros esperados − pagos − gastos fijos, semana a semana ──
+  const fixedWeek = (now.operativos - (-(now.a.get("511200") ?? 0)) - (-(now.a.get("511300") ?? 0)) + now.estructura + now.impuestos + now.financieros) / 4.33;
+  const salesWeek = (now.ingresos * 1.21) / 4.33, cmvWeek = (now.cmv * 1.21) / 4.33, varWeek = (-(now.a.get("511200") ?? 0) - (now.a.get("511300") ?? 0)) / 4.33;
+  const realCobro = ak.realDays ?? dso;
+  const weeks: number[] = [];
+  let run = caja;
+  for (let w = 0; w < 13; w++) {
+    const a = t + w * 7 * DAY, b = a + 7 * DAY;
+    const inDue = cli.filter((d) => { const exp = d.due.getTime() + Math.max(0, realCobro - 30) * DAY; return exp >= a && exp < b; }).reduce((x, d) => x + d.pending, 0);
+    const overdue = w < 4 ? cli.filter((d) => late(d) > 0).reduce((x, d) => x + d.pending, 0) * 0.15 : 0; // se cobra de a poco lo vencido
+    const outDue = pro.filter((d) => { const e = d.due.getTime(); return (w === 0 ? e < b : e >= a && e < b); }).reduce((x, d) => x + d.pending, 0);
+    const future = w * 7 >= realCobro ? salesWeek : 0, futureBuy = w * 7 >= dpo ? cmvWeek : 0;
+    run += inDue + overdue + future - outDue - futureBuy - fixedWeek - varWeek;
+    weeks.push(run);
+  }
+  const minCash = fixedWeek * 4.33; // un mes de gastos fijos
+  const low = Math.min(...weeks), lowWeek = weeks.indexOf(low);
+
+  // ── Hallazgos ──
+  const sueldos = -((now.a.get("521100") ?? 0) + (now.a.get("531100") ?? 0));
+  const costCodes = ["511200", "511300", "521100", "521200", "521300", "531100", "531200", "531300", "531400"];
+  const jump = costCodes.map((c) => ({ c, now: -(now.a.get(c) ?? 0), before: -(before.a.get(c) ?? 0) }))
+    .filter((x) => x.before > 0 && x.now - x.before > 300_000).sort((a, b) => (b.now / b.before) - (a.now / a.before))[0];
+  const worstIdx = cliRows.indexOf(worst[0]);
+  const risk = an.atRisk[0];
+  const insights: DemoPreview["insights"] = [];
+  if (worst[0]) insights.push({ module: "cli", big: $M(worst[0].total), title: `${worst[0].name} te debe hace ${worst[0].maxLate} días`, text: `Son ${worst[0].docs.length} facturas vencidas. Le podés mandar el reclamo ahora, con el tono que corresponde.`, row: worstIdx >= 0 ? worstIdx : undefined });
+  if (risk) insights.push({ module: "ret", big: `${risk.daysSince} días`, title: `${risk.name} dejó de comprar`, text: `Compraba cada ${risk.interval} días y hace ${risk.daysSince} que no compra: te compró ${$M(risk.revenue12)} en el año. Es momento de llamarlo.`, row: 0 });
+  if (vencido > 0) insights.push({ module: "cap", big: $M(vencido), title: "Plata atada en la calle", text: `Si cobrás lo vencido, liberás ${(vencido / sueldos).toLocaleString("es-AR", { maximumFractionDigits: 1 })} meses de sueldos.`, row: 0 });
+  if (jump) insights.push({ module: "pyl", big: `+${pct(jump.now / jump.before - 1)}`, title: `${accName.get(jump.c)} subió en ${monthName}`, text: `Pasó de ${$M(jump.before)} a ${$M(jump.now)}. Abrilo y ves cada factura que lo explica.`, row: jump.c.startsWith("53") ? 3 : 2 });
+  insights.push({ module: "caja", big: `${(caja / gastoMes).toLocaleString("es-AR", { maximumFractionDigits: 1 })} meses`, title: "Tu caja de hoy cubre", text: lowWeek > 0 ? `El punto más bajo de los próximos 3 meses es la semana ${lowWeek + 1}: ${$M(low)}.` : `Con lo que entra y sale, en 3 meses llegás a ${$M(weeks[12])}.` });
+  if (realCobro > 30) insights.push({ module: "ciclo", big: `${realCobro} días`, title: "Tus clientes te pagan más tarde de lo pactado", text: `Pactás 30 días pero cobrás a ${realCobro} y les pagás a tus proveedores a ${dpo}: financiás ${realCobro - dpo} días con tu plata.` });
+  if (sin.length) insights.push({ module: "stock", big: `${sin.length}`, title: "Productos sin stock", text: `${sin.map((i) => i.name).join(" y ")}: los estás dejando de vender.`, row: 0 });
+
+  const factCount = docs.filter((d) => d.kind === "venta").length + docs.filter((d) => d.kind === "compra").length;
+  const story = [
+    { t: "Leyendo 13 meses de contabilidad", n: `${E.length.toLocaleString("es-AR")} asientos` },
+    { t: "Ordenando ventas y compras", n: `${factCount.toLocaleString("es-AR")} facturas` },
+    { t: "Calculando tu margen", n: pct(margen) },
+    { t: "Revisando a quién le cobrás y a quién le pagás", n: `${clients.length} clientes · ${providers.length} proveedores` },
+    { t: "Proyectando tu caja", n: "13 semanas" },
+    { t: "Buscando lo importante", n: "3 hallazgos" },
+  ];
+
   const worstCli = worst[0];
   return {
+    story, insights, cash: { weeks, min: minCash, low, lowWeek },
     company: "Distribuidora del Sol", monthName, prevMonthName,
     tiles: {
       dash: [["Ventas del mes", $Mr(now.ingresos), arrow(up(now.ingresos, before.ingresos)), "g"], ["Ganancia", $Mr(now.resultado), `${pct(now.resultado / now.ingresos)} margen`, "g"], ["Caja hoy", $Mr(caja), `${(caja / gastoMes).toLocaleString("es-AR", { maximumFractionDigits: 1 })} meses`, "w"], ["Te deben", $Mr(teDeben), `${pct(vencido / teDeben)} vencido`, "b"]],
