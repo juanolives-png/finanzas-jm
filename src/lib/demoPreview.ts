@@ -3,6 +3,7 @@
 // mismos clientes, mismas cifras, mismas facturas. Se calcula en el servidor (una vez por día) y viaja
 // como datos simples al componente del inicio.
 import { ACCOUNTS, buildDemo, CLIENTS, SUPPLIERS } from "./demoData";
+import { customerAnalytics } from "./clientes";
 
 export type PvRow = { c: string[]; tone?: "b" | "g" | "w"; detail?: string[][] };
 export type PvKpi = [string, string, string?, ("g" | "b" | "w")?];
@@ -143,6 +144,10 @@ function compute(): DemoPreview {
     return [`${dm(e.date)} · ${what}`, (e.dc === "D" ? "+" : "−") + M(e.amount)];
   });
 
+  // ── Cartera: el mismo cálculo que la pantalla "Cartera y churn" ──
+  const an = customerAnalytics(docs.map((d) => ({ kind: d.kind, partyId: d.partyId, partyName: d.partyName, docType: d.docType, date: d.date as Date, dueDate: (d.dueDate as Date | null) ?? null, total: Number(d.total), pending: Number(d.pending), paidAt: (d.paidAt as Date | null | undefined) ?? null })), today, 90);
+  const ak = an.kpis;
+  const dmyS = (iso: string) => iso.split("-").reverse().join("/");
   const objV = before.ingresos * 1.04, objE = objV * 0.12, objO = before.operativos * 1.03; // presupuesto de ejemplo
   const sections: Record<string, PvSection> = {
     pyl: {
@@ -193,7 +198,7 @@ function compute(): DemoPreview {
       tip: `Si cobrás lo vencido, liberás ${$M(vencido)}.`,
     },
     ciclo: {
-      kpis: [["Cobrás a", `${dso} días`, "pactado 30", "w"], ["Pagás a", `${dpo} días`], ["Ciclo", `${dso - dpo} días`, dso > dpo ? "lo financiás vos" : "te financian", dso > dpo ? "w" : "g"]],
+      kpis: [["Cobrás a", `${ak.realDays ?? dso} días`, `pactado ${ak.agreedDays ?? 30}`, "w"], ["Pagás a", `${dpo} días`], ["Ciclo", `${(ak.realDays ?? dso) - dpo} días`, (ak.realDays ?? dso) > dpo ? "lo financiás vos" : "te financian", (ak.realDays ?? dso) > dpo ? "w" : "g"]],
       cols: ["Cliente", "Pactado", "Real"],
       rows: [...CLIENTS].sort((a, b) => a.delay - b.delay).filter((_, i, a) => i === 0 || i === Math.floor(a.length / 2) || i === a.length - 1)
         .map((c) => ({ c: [c.name, "30 días", `${30 + c.delay} días`], tone: c.delay > 60 ? "b" : c.delay > 10 ? "w" : "g" })),
@@ -217,6 +222,14 @@ function compute(): DemoPreview {
       kpis: [["Cobrado en la semana", $M(entro)], ["Pagado en la semana", $M(salio)], ["Caja hoy", $M(caja)], ["Vencido de clientes", $M(vencido), "", "b"]],
       cols: ["Top deudores", "Saldo", "Atraso"],
       rows: [...clients].sort((a, b) => b.total - a.total).slice(0, 3).map((r) => ({ c: [r.name, M(r.total), lateTxt(r.maxLate)], tone: tone(r.maxLate) })),
+    },
+    ret: {
+      kpis: [["Clientes activos", String(ak.active), `${ak.activeBefore} hace 90 días`, ak.active >= ak.activeBefore ? "g" : "w"], ["Nuevos · 90 días", String(ak.new90), $M(ak.newRevenue90) + " facturados", "g"],
+        ["Perdidos · 90 días", String(ak.lost90), `churn ${pct(ak.churn)}`, ak.lost90 ? "b" : "g"], ["Recompra", pct(ak.repeat), "compraron en 2 meses o más", "g"]],
+      cols: ["Cliente", "Venta 12 meses", "Días sin comprar"],
+      rows: [...an.atRisk.slice(0, 2).map((r) => ({ c: [`${r.name} · en riesgo`, M(r.revenue12), String(r.daysSince)], tone: "w" as const, detail: [["Última compra", dmyS(r.last)], ["Compraba cada", r.interval ? `${r.interval} días` : "—"]] })),
+        ...an.lost.slice(0, 3).map((r) => ({ c: [`${r.name} · perdido`, M(r.revenue12), String(r.daysSince)], tone: "b" as const, detail: [["Última compra", dmyS(r.last)], ["Compraba cada", r.interval ? `${r.interval} días` : "—"]] }))],
+      tip: `Concentración: tus 5 clientes más grandes son el ${pct(ak.top5Share)} de la venta. Días reales de cobro: ${ak.realDays} (pactado ${ak.agreedDays}).`,
     },
     ppto: {
       kpis: [["Ventas vs. objetivo", pct(now.ingresos / (objV)), "", "w"], ["EBITDA vs. objetivo", pct(now.ebitda / (objE)), "", now.ebitda >= objE ? "g" : "w"]],
@@ -242,6 +255,7 @@ function compute(): DemoPreview {
       aging: [[-9999, 0], [0, 30], [30, 60], [60, 90], [90, 99999]].map(([lo, hi]) => cli.filter((d) => late(d) > lo && late(d) <= hi).reduce((s, d) => s + d.pending, 0)),
       prov4: [0, 1, 2, 3].map((w) => pro.filter((d) => { const n = -late(d); return n >= w * 7 && n < (w + 1) * 7; }).reduce((s, d) => s + d.pending, 0)),
       fac: [$Mr(facTot), `${facMes.length} facturas`], iva: [$M(Math.abs(ivaD - ivaC)), "vence el 18"], stock: [$Mr(stockVal), `${bajo.length + sin.length} productos para reponer`],
+      ret: [String(ak.active), `${ak.lost90} perdidos y ${ak.new90} nuevos en 90 días`],
       ppto: pct(now.ingresos / (objV)), cap: [$M(teDeben - debes), M(teDeben), M(debes)], ciclo: [`${dso - dpo} días`, `cobrás a ${dso} · pagás a ${dpo}`],
       eq: [$Mr(equilibrio), `${monthName} lo superó ${pct(now.ingresos / equilibrio - 1)}`],
       ia: [`¿Qué cliente me conviene menos?`, `${worstCli.name}: te debe ${$M(worstCli.total)} y paga a ${worstCli.maxLate} días del vencimiento.`],

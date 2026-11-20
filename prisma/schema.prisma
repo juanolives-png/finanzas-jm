@@ -170,6 +170,9 @@ model Doc {
   total       Decimal   @db.Decimal(16, 2)
   applied     Decimal   @db.Decimal(16, 2)
   pending     Decimal   @db.Decimal(16, 2)
+  /// Fecha del último cobro que la canceló (de Colppy: leer_cobros_factura). Con esto se miden los días reales de cobro.
+  paidAt      DateTime? @map("paid_at")
+  payChecked  Boolean   @default(false) @map("pay_checked")
 
   @@unique([companyId, kind, colppyId])
   @@index([companyId, kind, partyId])

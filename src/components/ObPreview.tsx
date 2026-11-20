@@ -149,6 +149,12 @@ export const OB_INFO: Record<string, Info> = {
     tip: "Si cobrás lo vencido, liberás $ 42,8 M: más que un mes de sueldos y alquiler.",
     actions: ["Ver quién te debe", "Ver a quién le debés"],
   },
+  ret: {
+    title: "Retención y churn", lead: "Quién compra, quién dejó de comprar y quién está por irse.",
+    kpis: [],
+    tip: "Tocá un cliente para ver cuándo compró por última vez y cada cuánto compraba.",
+    actions: ["Llamar a los que están en riesgo", "Ver los clientes perdidos del año", "Elegir cuántos días sin comprar es \"perdido\"", "Ver la concentración de ventas"],
+  },
   ciclo: {
     title: "Ciclo de la plata", lead: "En cuántos días te pagan de verdad, y en cuántos pagás vos.", soon: true,
     kpis: [["Cobrás a", "41 días", "pactado 30", "w"], ["Pagás a", "33 días"], ["Ciclo", "8 días", "lo financiás vos", "w"]],

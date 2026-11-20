@@ -20,12 +20,12 @@ const IC: Record<string, string> = {
   fac: "M6 3h9l3 3v15H6zM9 9h6M9 13h6M9 17h4", prov: "M1 4h14v11H1zm14 4h4l3 3v4h-7", iva: "M19 5 5 19M7 7h.01M17 17h.01",
   soc: "M4 4h16v12H4zM8 20h8M12 16v4", ppto: "M12 3v9l6 3M21 12a9 9 0 1 1-9-9", ia: "M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z",
   stock: "M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8",
-  cap: "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", ciclo: "M21 12a9 9 0 1 1-3-6.7M21 4v5h-5", eq: "M3 17l6-6 4 4 8-8M14 7h7v7", x: "M12 5v14M5 12h14",
+  cap: "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", ret: "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 11l2 2 4-4", ciclo: "M21 12a9 9 0 1 1-3-6.7M21 4v5h-5", eq: "M3 17l6-6 4 4 8-8M14 7h7v7", x: "M12 5v14M5 12h14",
 };
 const Ico = ({ k }: { k: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[k] ?? IC.x} /></svg>
 );
-const SUGGESTIONS = ["Quiero un dashboard financiero", "Quiero tener un P&L", "Llevar las cobranzas y la facturación", "Controlar a mis proveedores", "Saber cuánta caja voy a tener", "Ver mi capital de trabajo", "Controlar el stock", "Mandar un reporte a mis socios"];
+const SUGGESTIONS = ["Quiero un dashboard financiero", "Quiero tener un P&L", "Llevar las cobranzas y la facturación", "Saber qué clientes perdí", "Controlar a mis proveedores", "Saber cuánta caja voy a tener", "Ver mi capital de trabajo", "Controlar el stock", "Mandar un reporte a mis socios"];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; preview: DemoPreview }) {
@@ -253,6 +253,7 @@ function Tile({ m, onOpen, pv }: { m: ObModule; onOpen: () => void; pv: DemoPrev
     case "ppto": return <T l="Presupuesto" v={x.ppto} c="ventas vs. objetivo" cl="w" />;
     case "stock": return <T l="Stock valorizado" v={x.stock[0]} c={x.stock[1]} cl="w" />;
     case "cap": return box("w2", <><div className="l">Capital de trabajo operativo</div><div className="v">{x.cap[0]}</div><div className="ob-rowx" style={{ marginTop: 6 }}><span>Te deben clientes</span><b>$ {x.cap[1]} M</b></div><div className="ob-rowx"><span>Debés a proveedores</span><b>− $ {x.cap[2]} M</b></div></>);
+    case "ret": return <T l="Clientes activos" v={x.ret[0]} c={x.ret[1]} cl="w" />;
     case "ciclo": return <T l="Ciclo de la plata" v={x.ciclo[0]} c={x.ciclo[1]} cl="w" />;
     case "eq": return <T l="Punto de equilibrio" v={x.eq[0]} c={x.eq[1]} cl="g" />;
     case "ia": return box("w2", <><div className="l">Asistente</div><div style={{ fontSize: 13, marginTop: 8 }}>“{x.ia[0]}”</div><div style={{ fontSize: 12, color: "#7C8B84", marginTop: 6 }}>{x.ia[1]}</div></>);

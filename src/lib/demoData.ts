@@ -49,7 +49,8 @@ export const ACCOUNTS: { code: string; name: string; category: string; typeName:
 ];
 
 // ── Clientes: peso en las ventas, letra de factura y cuántos días tarda en pagar después del vencimiento ──
-export const CLIENTS: { name: string; w: number; letter: "A" | "B"; delay: number; city: string }[] = [
+// from / until: mes (0 = hace 12 meses, 12 = este mes) en que empezó o dejó de comprar · every: compra cada N meses
+export const CLIENTS: { name: string; w: number; letter: "A" | "B"; delay: number; city: string; from?: number; until?: number; every?: number }[] = [
   { name: "Supermercado La Esquina", w: 14, letter: "A", delay: 9, city: "San Isidro" },
   { name: "Autoservicio El Trébol", w: 11, letter: "A", delay: 3, city: "Pilar" },
   { name: "Súper Familia", w: 10, letter: "A", delay: 2, city: "Luján" },
@@ -69,7 +70,14 @@ export const CLIENTS: { name: string; w: number; letter: "A" | "B"; delay: numbe
   { name: "Almacén La Abuela", w: 2, letter: "B", delay: 21, city: "Lomas de Zamora" },
   { name: "Despensa Las Lilas", w: 2, letter: "B", delay: 1, city: "Banfield" },
   { name: "Kiosco El Faro", w: 2, letter: "B", delay: 3, city: "Quilmes" },
-  { name: "Club Barrio Sur", w: 2, letter: "A", delay: 45, city: "Avellaneda" },
+  { name: "Club Barrio Sur", w: 2, letter: "A", delay: 45, city: "Avellaneda", every: 2 },
+  // Clientes que se fueron (churn) y que llegaron (nuevos)
+  { name: "Rotisería El Buen Gusto", w: 3, letter: "B", delay: 10, city: "Ramos Mejía", until: 5 },
+  { name: "Almacén Santa Rita", w: 3, letter: "A", delay: 6, city: "Olivos", until: 9 },
+  { name: "Autoservicio Los Robles", w: 4, letter: "A", delay: 12, city: "Martínez", until: 10 },
+  { name: "Mercado Saludable", w: 3, letter: "A", delay: 5, city: "Vicente López", from: 8 },
+  { name: "Hotel Costa Azul", w: 3, letter: "A", delay: 20, city: "Mar del Plata", from: 10 },
+  { name: "Dietética Vida Verde", w: 2, letter: "B", delay: 2, city: "Florida", from: 12 },
 ];
 
 // ── Proveedores: qué cuenta pagan, cuánto (fijo mensual o % de las ventas) y cómo se les paga ──
@@ -147,6 +155,7 @@ export function buildDemo(companyId: string) {
     // ── Ventas y cobranzas ──
     CLIENTS.forEach((c, ci) => {
       const pid = `demo-c${ci + 1}`;
+      if ((c.from !== undefined && i < c.from) || (c.until !== undefined && i > c.until) || (c.every && i % c.every)) return;
       const share = (S * c.w) / wSum;
       const n = c.w >= 8 ? 3 : c.w >= 4 ? 2 : 1;
       for (let k = 0; k < n; k++) {
@@ -158,7 +167,7 @@ export function buildDemo(companyId: string) {
         const colppyId = `demo-fv-${++nroV}`;
         const paid = ok(pay);
         docs.push({ companyId, kind: "venta", colppyId, partyId: pid, partyName: c.name, docType: "FAV", letter: c.letter, cae: "demo",
-          number: `0003-${String(nroV).padStart(8, "0")}`, date, dueDate: due, description: "Mercadería según remito", total, applied: paid ? total : 0, pending: paid ? 0 : total });
+          number: `0003-${String(nroV).padStart(8, "0")}`, date, dueDate: due, description: "Mercadería según remito", total, applied: paid ? total : 0, pending: paid ? 0 : total, paidAt: paid ? pay : null, payChecked: true });
         line(date, "113100", "D", total, "FV", colppyId, "2", pid);
         line(date, c.letter === "A" ? "411100" : "411200", "C", neto, "FV", colppyId, "2", pid);
         line(date, "213100", "C", iva, "FV", colppyId, "2", pid);

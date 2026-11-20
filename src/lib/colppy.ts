@@ -105,6 +105,13 @@ export class ColppyClient {
   }
 
   /** Ítems de inventario (productos y servicios) con su disponibilidad. */
+  /** Cobros aplicados a una factura de venta (fecha, recibo, importe). */
+  async cobrosFactura(idFactura: string): Promise<Record<string, any>[]> {
+    const idEmpresa = this.requireEmpresa();
+    const r = (await this.call("FacturaVenta", "leer_cobros_factura", { idEmpresa, idFactura })) as any;
+    return Array.isArray(r?.data) ? r.data : [];
+  }
+
   async itemsInventario(): Promise<Record<string, any>[]> {
     const idEmpresa = this.requireEmpresa();
     const out: Record<string, any>[] = [];

@@ -81,7 +81,8 @@ async function upsertDocs(companyId: string, kind: "venta" | "compra", rows: Row
     if (!prev) { creates.push({ companyId, kind, colppyId, ...data }); continue; }
     const changed = Number(prev.total) !== total || Number(prev.applied) !== applied || (prev.dueDate?.getTime() ?? 0) !== (dueDate?.getTime() ?? 0)
       || prev.partyName !== partyName || prev.number !== data.number || (prev.cae ?? null) !== data.cae;
-    if (changed) updates.push(db.doc.update({ where: { id: prev.id }, data }));
+    // si cambió lo cobrado, la fecha de cobro se vuelve a leer
+    if (changed) updates.push(db.doc.update({ where: { id: prev.id }, data: Number(prev.applied) !== applied ? { ...data, payChecked: false, paidAt: null } : data }));
   }
   for (const part of chunks(creates, 2000)) await db.doc.createMany({ data: part, skipDuplicates: true });
   await inChunks(updates);
@@ -163,6 +164,29 @@ async function syncItems(c: ColppyClient, companyId: string) {
   return rows.length;
 }
 
+/**
+ * Fecha real de cobro de las facturas de venta ya canceladas: una consulta por factura (leer_cobros_factura),
+ * de a 5 en paralelo y hasta 600 por actualización, las más nuevas primero. Así la historia se completa en
+ * pocas actualizaciones y después solo se leen las que se van cobrando.
+ */
+async function fillPaidDates(c: ColppyClient, companyId: string, onStep: (done: number, total: number) => Promise<unknown>) {
+  const docs = await db.doc.findMany({
+    where: { companyId, kind: "venta", docType: { in: ["FAV", "NDV"] }, payChecked: false, applied: { gt: 0 }, pending: { lte: 1, gte: -1 } },
+    orderBy: { date: "desc" }, take: 600, select: { id: true, colppyId: true },
+  });
+  let done = 0;
+  await pool(docs, 5, async (d) => {
+    try {
+      const cobros = await c.cobrosFactura(d.colppyId);
+      const dates = cobros.map((x) => parseDate(x.fechaCobro ?? x.fecha)).filter((x): x is Date => !!x);
+      const paidAt = dates.length ? new Date(Math.max(...dates.map((x) => x.getTime()))) : null;
+      await db.doc.update({ where: { id: d.id }, data: { paidAt, payChecked: true } });
+    } catch { /* si falla, se reintenta en la próxima actualización */ }
+    await onStep(++done, docs.length);
+  });
+  return done;
+}
+
 /** Avance dentro de una etapa cuando no se sabe el total: se acerca al final sin llegar nunca. */
 const approach = ([a, b]: readonly [number, number], n: number, k: number) => a + (b - a) * (1 - 1 / (1 + n / k));
 
@@ -177,9 +201,10 @@ export async function syncDocs(c: ColppyClient, idEmpresa: string, companyId: st
   const k = await upsertDocs(companyId, "compra", compras, from);
 
   const [c0, c1] = STAGES.contactos, mid = (c0 + c1) / 2;
+  const cobros = await fillPaidDates(c, companyId, (d, t) => progress(`Fechas de cobro: ${d} de ${t}`, c0));
   await fillContacts(c, idEmpresa, companyId, "cliente", v.parties, (d, t) => progress(`Datos de clientes: ${d} de ${t}`, c0 + (mid - c0) * (d / Math.max(t, 1))));
   await fillContacts(c, idEmpresa, companyId, "proveedor", k.parties, (d, t) => progress(`Datos de proveedores: ${d} de ${t}`, mid + (c1 - mid) * (d / Math.max(t, 1))));
   await progress("Trayendo el stock…", c1 - 1);
   const items = await syncItems(c, companyId);
-  return { ventas: v.count, compras: k.count, items };
+  return { ventas: v.count, compras: k.count, items, cobros };
 }
