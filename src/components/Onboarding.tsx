@@ -131,6 +131,13 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
     setBusy(false);
   }
 
+  /** Borra la charla y vuelve a la pregunta inicial (tocando el logo o "Empezar de nuevo"). */
+  function reset() {
+    setMsgs([]); setChosen([]); setCatalog(OB_MODULES); setWishes([]); setWhy({}); setProfile({});
+    setQ(""); setBusy(false); setBuilding(false); setDone(false); setActive("dash"); setCompany("");
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
   const toggle = (id: string) => { if (id === "dash") return; setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id])); };
 
   // ── El armado: cada pieza arranca en el centro, chiquita y girada, y vuela a su lugar ──
@@ -192,8 +199,11 @@ export default function Onboarding({ loggedIn, preview }: { loggedIn: boolean; p
       <div className="ob-glow" />
       <div className="ob-wrap">
         <header className="ob-top">
-          <Wordmark height={24} />
-          {loggedIn ? <a href="/app">Ir a mi tablero</a> : <a href="/login">Ya tengo cuenta</a>}
+          <button className="ob-logo" onClick={reset} title="Empezar de nuevo" aria-label="Numo · empezar de nuevo"><Wordmark height={24} /></button>
+          <span className="ob-top-r">
+            {started && <button className="ob-reset" onClick={reset}>↺ Empezar de nuevo</button>}
+            {loggedIn ? <a href="/app">Ir a mi tablero</a> : <a href="/login">Ya tengo cuenta</a>}
+          </span>
         </header>
 
         <main className={`ob-stage ${building ? "out" : ""}`}>
