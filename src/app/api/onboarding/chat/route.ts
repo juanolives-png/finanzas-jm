@@ -16,14 +16,14 @@ const Body = z.object({
   chosen: z.array(z.string().max(40)).max(30).optional(),
 });
 
-// Límite simple en memoria: 30 mensajes por hora por IP
+// Límite simple en memoria: 80 mensajes por hora por IP (cuida el crédito sin cortar a quien prueba en serio)
 const hits = new Map<string, { n: number; reset: number }>();
 function allowed(ip: string) {
   const now = Date.now(), h = hits.get(ip);
   if (!h || h.reset < now) { hits.set(ip, { n: 1, reset: now + 3_600_000 }); return true; }
   h.n++;
   if (hits.size > 5000) hits.clear();
-  return h.n <= 30;
+  return h.n <= 80;
 }
 
 const catalog = OB_MODULES.map((m) => `- ${m.id}: ${m.label}${OB_INFO[m.id] ? ` — ${OB_INFO[m.id].lead}${OB_INFO[m.id].soon ? " (llega pronto)" : ""}` : ""}`).join("\n");
@@ -70,25 +70,32 @@ export async function POST(req: Request) {
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) return Response.json({ fallback: true });
     const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
-    if (!allowed(ip)) return Response.json({ fallback: true, reason: "limite" });
+    if (!allowed(ip)) { console.warn("[onboarding/chat] límite por IP", ip); return Response.json({ fallback: true, reason: "limite" }); }
     const p = Body.safeParse(await req.json());
     if (!p.success) return Response.json({ fallback: true });
     const { messages, chosen = [] } = p.data;
 
     const convo = messages.map((m) => ({ role: m.role, content: m.text }));
     convo[convo.length - 1] = { role: "user", content: `${convo[convo.length - 1].content}\n\n(Secciones elegidas hasta ahora: ${chosen.length ? chosen.join(", ") : "ninguna"})` };
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 700, system: SYSTEM, messages: convo }),
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!res.ok) { console.error("[onboarding/chat]", res.status, (await res.text()).slice(0, 300)); return Response.json({ fallback: true }); }
-    const j = await res.json();
-    const text: string = (j.content ?? []).map((c: { text?: string }) => c.text ?? "").join("");
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return Response.json({ fallback: true });
-    const o = JSON.parse(match[0]) as Record<string, unknown>;
+    // Hasta 2 intentos: si la IA tarda o no devuelve un JSON válido, se reintenta una vez antes de caer a las palabras clave
+    let o: Record<string, unknown> | null = null, fail = "";
+    for (let attempt = 0; attempt < 2 && !o; attempt++) {
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ model: MODEL, max_tokens: 1000, system: SYSTEM, messages: convo }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!res.ok) { fail = `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`; continue; }
+        const j = await res.json();
+        const text: string = (j.content ?? []).map((c: { text?: string }) => c.text ?? "").join("");
+        const match = text.match(/\{[\s\S]*\}/);
+        if (!match) { fail = "sin JSON"; continue; }
+        o = JSON.parse(match[0]) as Record<string, unknown>;
+      } catch (e) { fail = e instanceof Error ? e.message : String(e); }
+    }
+    if (!o) { console.error("[onboarding/chat] respaldo:", fail); return Response.json({ fallback: true, reason: fail.slice(0, 120) }); }
     const ids = new Set(OB_MODULES.map((m) => m.id));
     const modules = Array.from(new Set(["dash", ...(Array.isArray(o.modules) ? o.modules.map(String) : [])])).filter((x) => ids.has(x));
     const whyIn = (o.why && typeof o.why === "object" ? o.why : {}) as Record<string, unknown>;

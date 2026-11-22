@@ -74,13 +74,13 @@ export default function Onboarding({ loggedIn, preview: initial }: { loggedIn: b
 
     // La charla hasta acá, para que la IA tenga contexto
     const history = [...msgs.filter((m) => m.text).map((m) => ({ role: m.who === "user" ? "user" : "assistant", text: m.who === "bot" ? [m.text, m.ask].filter(Boolean).join(" ") : m.text })), { role: "user", text }];
-    let ai: { fallback?: boolean; reply?: string; modules?: string[]; why?: Record<string, string>; custom?: string[]; question?: string; profile?: Profile } | null = null;
+    let ai: { fallback?: boolean; reason?: string; reply?: string; modules?: string[]; why?: Record<string, string>; custom?: string[]; question?: string; profile?: Profile } | null = null;
     try {
       const r = await fetch("/api/onboarding/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: history.slice(-12), chosen: chosen.filter((x) => !x.startsWith("x")) }) });
       ai = r.ok ? await r.json() : null;
     } catch { ai = null; }
     upd(botId, { thinking: false });
-    if (!ai || ai.fallback || !ai.reply) { await keywordReply(text, botId); return; }
+    if (!ai || ai.fallback || !ai.reply) { if (ai?.reason) console.warn("Numo: respondiendo sin IA →", ai.reason); await keywordReply(text, botId); return; }
 
     // Lo que pidió y no existe: tarjeta de "pedido especial"
     let cat = catalog;
@@ -114,6 +114,15 @@ export default function Onboarding({ loggedIn, preview: initial }: { loggedIn: b
     let found = detectModules(text);
     let cat = catalog;
     let custom: ObModule | null = null;
+    const isQuestion = /\?|^(que|qué|como|cómo|cual|cuál|por que|por qué|haceme|hace|podes|podés|me recomend|recomenda|recomendá)\b/i.test(text.trim()) || text.trim().split(/\s+/).length > 9;
+    if (!found.length && !isFirst && isQuestion) {
+      setChosen(Array.from(new Set([...chosen, "dash"])));
+      await sleep(300);
+      await typeInto(botId, "text", "Para recomendarte bien, contame qué hace tu empresa y qué te gustaría saber de tus números: por ejemplo, si ganás plata, cuánta caja vas a tener o quién te debe.");
+      upd(botId, { actions: true });
+      setBusy(false);
+      return;
+    }
     if (!found.length && !isFirst) {
       const label = text.replace(/^((quiero|me gustaria|me gustaría|tambien|también|agrega|agregá|agregar|sumale|sumá|ver|tener|saber|una|un|el|la|los|las|mi|mis|tarjeta|de)\s+)+/i, "").replace(/[.!?]+$/, "").slice(0, 42);
       custom = { id: "x" + idRef.current, label: label.charAt(0).toUpperCase() + label.slice(1), kw: [], custom: true };
