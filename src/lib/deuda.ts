@@ -4,6 +4,9 @@
 import { db } from "./db";
 
 export type Kind = "clientes" | "proveedores";
+/** ¿Tiene factura electrónica (y PDF en Colppy)? Con CAE seguro; sin CAE guardado, si la letra es de AFIP/ARCA (A, B, C, E, M).
+ *  Las X, I o sin letra son comprobantes internos. */
+export const isElectronic = (d: { cae?: string | null; letter?: string | null }) => !!d.cae || ["A", "B", "C", "E", "M"].includes((d.letter ?? "").toUpperCase());
 export const docKind = (k: Kind) => (k === "clientes" ? "venta" : "compra");
 export const partyKind = (k: Kind) => (k === "clientes" ? "cliente" : "proveedor");
 
@@ -97,7 +100,7 @@ export async function partyDetail(companyId: string, kind: Kind, partyId: string
       ? { id: party.colppyId, name: party.name, alias: party.alias, cuit: party.cuit, email: party.email, phone: party.phone, address: [party.address, party.city, party.province].filter(Boolean).join(", ") || null, ivaCondition: party.ivaCondition }
       : { id: partyId, name: docs[0]?.partyName ?? partyId, alias: null, cuit: null, email: null, phone: null, address: null, ivaCondition: null },
     docs: docs.map((d) => ({
-      id: d.id, docType: d.docType, letter: d.letter, number: d.number, electronic: !!d.cae, date: d.date.toISOString().slice(0, 10),
+      id: d.id, docType: d.docType, letter: d.letter, number: d.number, electronic: isElectronic(d), date: d.date.toISOString().slice(0, 10),
       dueDate: d.dueDate ? d.dueDate.toISOString().slice(0, 10) : null, total: Number(d.total), pending: Number(d.pending),
       late: daysLate(d.dueDate, d.date, today), description: d.description,
     })),

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { errorResponse, getCompany, HttpError, requireSession } from "@/lib/auth";
 import { isDemo } from "@/lib/demo";
-import { daysLate, docKind, partyKind } from "@/lib/deuda";
+import { daysLate, docKind, partyKind, isElectronic } from "@/lib/deuda";
 import { deliver, docLabel, mailConfig, renderMail, splitEmails, type Tone } from "@/lib/mail";
 import { colppyFor } from "@/lib/colppySession";
 
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     if (b.attachPdfs && b.kind === "reclamo_cliente") {
       const c = await colppyFor(company).catch(() => null);
       for (const d of docs) {
-        if (!c || !d.cae) { sinPdf.push(docLabel(d)); continue; } // sin CAE no es electrónica: Colppy no tiene PDF
+        if (!c || !isElectronic(d)) { sinPdf.push(docLabel(d)); continue; } // X / I: no es electrónica, Colppy no tiene PDF
         try { attachments.push({ filename: docLabel(d).replace(/\s+/g, "_") + ".pdf", content: await c.pdf(d.colppyId) }); }
         catch { sinPdf.push(docLabel(d)); }
       }

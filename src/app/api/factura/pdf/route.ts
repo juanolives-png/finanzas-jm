@@ -4,6 +4,7 @@ import { errorResponse, getCompany, HttpError, requireSession } from "@/lib/auth
 import { colppyFor, resetColppyFor } from "@/lib/colppySession";
 import { docLabel } from "@/lib/mailTemplates";
 import { isDemo } from "@/lib/demo";
+import { isElectronic } from "@/lib/deuda";
 
 /** Página prolija (con la marca) en vez de un JSON crudo cuando no hay PDF. */
 function page(title: string, msg: string, status = 200) {
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
     const doc = await db.doc.findFirst({ where: { id: docId, companyId: company.id, kind: "venta" } });
     if (!doc) return page("No encontramos la factura", "Puede que se haya borrado o anulado en Colppy. Actualizá los datos y probá de nuevo.", 404);
     if (isDemo(company)) return page(`${docLabel(doc)}: factura de ejemplo`, "Esta es la empresa demo, con números inventados. Con tu Colppy conectado, acá se abre el PDF real de la factura.");
-    if (!doc.cae) return page(`${docLabel(doc)}: sin factura en ARCA`, "Es un comprobante no electrónico (X, I u otro interno), así que no tiene CAE y Colppy no genera PDF.");
+    if (!isElectronic(doc)) return page(`${docLabel(doc)}: sin factura en ARCA`, "Es un comprobante no electrónico (X, I u otro interno), así que no tiene CAE y Colppy no genera PDF.");
     let buf: Buffer;
     try { buf = await (await colppyFor(company)).pdf(doc.colppyId); }
     catch (e) {
