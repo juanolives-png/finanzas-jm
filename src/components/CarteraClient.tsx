@@ -118,7 +118,7 @@ export default function CarteraClient() {
               {tab === "riesgo" && "Siguen activos, pero hace bastante más que lo habitual que no compran. Es el momento de llamarlos."}
               {tab === "perdidos" && `Pasaron más de ${d.lostDays} días desde su última compra. Ordenados por lo que te compraban.`}
               {tab === "cobro" && `De la factura al cobro, según la fecha de cada recibo en Colppy (${pct(k.paidCoverage)} de las facturas cobradas ya tienen su fecha).`}
-              {tab === "todos" && "Toda la cartera, ordenada por lo que te compró en los últimos 12 meses. Tocá un cliente para ver su ficha."}
+              {tab === "todos" && "Toda la cartera, ordenada por lo que te compró en los últimos 12 meses. Tocá un cliente para abrir su ficha completa."}
             </p>
             {list.length === 0 ? <p className="muted" style={{ padding: 16 }}>{tab === "riesgo" ? "Nadie en riesgo: todos compran a su ritmo de siempre." : "Nada para mostrar."}</p> : (
               <div className="table-wrap">
@@ -133,7 +133,7 @@ export default function CarteraClient() {
                   </thead>
                   <tbody>
                     {list.map((c) => (
-                      <tr key={c.id} onClick={() => setOpen(c.id)}>
+                      <tr key={c.id} onClick={() => { window.location.href = `/app/clientes/${encodeURIComponent(c.id)}?company=${companyId}`; }}>
                         <td>{c.name}</td>
                         <td className="num">{short(c.revenue12)}</td>
                         {tab === "cobro" ? <>

@@ -147,6 +147,7 @@ model Party {
   province    String?
   ivaCondition String? @map("iva_condition")
   contactAt   DateTime? @map("contact_at") /// última vez que se leyó la ficha en Colppy
+  autoClaim   Boolean   @default(true) @map("auto_claim") /// entra en los reclamos automáticos (se puede excluir por cliente)
 
   @@unique([companyId, kind, colppyId])
   @@index([companyId, kind])
@@ -261,4 +262,55 @@ model CpiMonth {
   pct   Decimal @db.Decimal(8, 3)
 
   @@map("cpi_months")
+}
+
+/// Notas y acuerdos sobre un cliente o proveedor ("paga el 10", "habló con Marta, transfiere el viernes").
+model PartyNote {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  kind      String // cliente | proveedor
+  partyId   String   @map("party_colppy_id")
+  text      String
+  author    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, kind, partyId])
+  @@map("party_notes")
+}
+
+/// Reclamos automáticos de una empresa: qué días se envían, desde qué atraso y a quién se avisa el día anterior.
+model ClaimSchedule {
+  id         String   @id @default(cuid())
+  companyId  String   @unique @map("company_id")
+  enabled    Boolean  @default(false)
+  days       Json     /// días del mes en que se envía, ej. [10, 25]
+  minLate    Int      @default(1) @map("min_late") /// días de atraso desde los que se reclama
+  minAmount  Decimal  @default(0) @map("min_amount") @db.Decimal(16, 2)
+  cooldown   Int      @default(7) /// no reclamar a quien ya se le reclamó hace menos de N días
+  hour       Int      @default(9) /// hora (Argentina) del aviso y del envío
+  notifyTo   String?  @map("notify_to") /// mails que reciben el aviso del día anterior y el resumen
+  pausedFor  String?  @map("paused_for") /// fecha (YYYY-MM-DD) del envío pausado
+  noticeFor  String?  @map("notice_for") /// último envío del que se mandó aviso
+  sentFor    String?  @map("sent_for") /// último envío realizado
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("claim_schedules")
+}
+
+/// Historial: avisos, envíos, pausas y errores de los reclamos automáticos.
+model ClaimRun {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  runDate   String   @map("run_date") /// YYYY-MM-DD del envío al que corresponde
+  stage     String // aviso | envio | pausa
+  ok        Boolean
+  sent      Int      @default(0)
+  failed    Int      @default(0)
+  amount    Decimal  @default(0) @db.Decimal(16, 2)
+  detail    Json?
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, createdAt])
+  @@map("claim_runs")
 }

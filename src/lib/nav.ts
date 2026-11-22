@@ -30,7 +30,7 @@ export const NAV: Section[] = [
     modules: [
       { slug: "deuda-clientes", label: "Deuda y reclamos", href: "/app/clientes", desc: "Quién te debe, cuánto y desde cuándo; reclamos por mail con tono según el atraso." },
       { slug: "cartera", label: "Cartera y churn", href: "/app/clientes/analisis", desc: "Clientes activos, nuevos y perdidos, recompra, concentración y días reales de cobro." },
-      { slug: "cobranzas", label: "Reclamo masivo", desc: "Mandar el resumen de cuenta a todos los clientes vencidos de una vez.", bullets: ["Elegís tramo (+30, +60, +90)", "Un mail por cliente con su tono", "Resumen de lo enviado"], from: "Infocampo" },
+      { slug: "cobranzas", label: "Reclamos automáticos", href: "/app/clientes/reclamos", desc: "Reclamos que salen solos en las fechas que elijas, con aviso el día anterior para dejar todo cargado." },
       { slug: "facturacion", label: "Facturación", desc: "Facturar a Colppy desde el sistema (módulo premium).", from: "Infocampo" },
     ],
   },

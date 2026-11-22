@@ -57,6 +57,7 @@ export default function PartyDrawer({ companyId, companyName, kind, partyId, onC
               <div>
                 <div className="crumb">{isCli ? "Cliente" : "Proveedor"}{d.party.cuit ? ` · CUIT ${d.party.cuit}` : ""}{d.party.ivaCondition ? ` · ${d.party.ivaCondition}` : ""}</div>
                 <h2>{d.party.name}</h2>
+                {isCli && <a className="up small" href={`/app/clientes/${encodeURIComponent(partyId)}?company=${companyId}`}>Ver ficha completa →</a>}
               </div>
               <button className="link-btn" onClick={onClose} style={{ fontSize: 20 }}>×</button>
             </div>
